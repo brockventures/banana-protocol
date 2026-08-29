@@ -94,3 +94,13 @@ class TestClassifier(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class TestAsyncClientImport(unittest.TestCase):
+    def test_async_client_structure(self):
+        from banana.client import AsyncBananaClient
+        client = AsyncBananaClient(token="mock", holder="marvin")
+        self.assertEqual(client.holder, "marvin")
+        self.assertTrue(hasattr(client, "hold"))
+        self.assertTrue(hasattr(client, "claim"))
+        self.assertTrue(hasattr(client, "release"))
+        self.assertTrue(hasattr(client, "get_status"))

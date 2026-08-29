@@ -131,3 +131,82 @@ class BananaClient:
                 self.release()
             except Exception:
                 pass
+
+from contextlib import asynccontextmanager
+
+class AsyncBananaClient:
+    """Async client using aiohttp for asyncio/aiohttp native stacks (e.g. Marvin/Amos)."""
+
+    def __init__(self, token: Optional[str] = None, holder: str = "zero", endpoint: str = DEFAULT_ENDPOINT, timeout: float = 10.0):
+        self.token = token
+        self.holder = holder
+        self.endpoint = endpoint.rstrip("/")
+        self.timeout = timeout
+
+    async def get_status(self) -> Dict[str, Any]:
+        import aiohttp
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"{self.endpoint}/status", timeout=aiohttp.ClientTimeout(total=self.timeout)) as resp:
+                return await resp.json()
+
+    async def is_free(self) -> bool:
+        try:
+            status = await self.get_status()
+            return status.get("holder") is None
+        except Exception:
+            return False
+
+    async def claim(self, subject: str = "", preflight: bool = True) -> Dict[str, Any]:
+        import aiohttp
+        if not self.token:
+            raise BananaError("Bearer token required to claim the floor.")
+
+        if preflight:
+            status = await self.get_status()
+            current_holder = status.get("holder")
+            if current_holder and current_holder != self.holder:
+                raise BananaBlockedError(current_holder, status.get("state", {}))
+
+        data = {"holder": self.holder, "subject": subject}
+        headers = {
+            "Authorization": f"Bearer {self.token}",
+            "Content-Type": "application/json"
+        }
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(f"{self.endpoint}/claim", json=data, headers=headers, timeout=aiohttp.ClientTimeout(total=self.timeout)) as resp:
+                body = await resp.json()
+                if resp.status == 409 and body.get("code") == "blocked":
+                    raise BananaBlockedError(body.get("holder", "unknown"), body.get("state", {}))
+                if resp.status != 200:
+                    raise BananaError(f"HTTP {resp.status}: {body.get('error') or body.get('code')}")
+                return body
+
+    async def release(self) -> Dict[str, Any]:
+        import aiohttp
+        if not self.token:
+            raise BananaError("Bearer token required to release the floor.")
+
+        data = {"holder": self.holder}
+        headers = {
+            "Authorization": f"Bearer {self.token}",
+            "Content-Type": "application/json"
+        }
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(f"{self.endpoint}/release", json=data, headers=headers, timeout=aiohttp.ClientTimeout(total=self.timeout)) as resp:
+                body = await resp.json()
+                if resp.status != 200:
+                    raise BananaError(f"HTTP {resp.status}: {body.get('error') or body.get('code')}")
+                return body
+
+    @asynccontextmanager
+    async def hold(self, subject: str = "", preflight: bool = True):
+        await self.claim(subject=subject, preflight=preflight)
+        try:
+            yield
+        finally:
+            try:
+                await self.release()
+            except Exception:
+                pass
