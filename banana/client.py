@@ -25,7 +25,7 @@ class BananaBlockedError(BananaError):
 class BananaClient:
     """Zero-dependency client for the Banana turn-claim API."""
 
-    def __init__(self, token: Optional[str] = None, holder: str = "zero", endpoint: str = DEFAULT_ENDPOINT, timeout: float = 10.0):
+    def __init__(self, holder: str, token: Optional[str] = None, endpoint: str = DEFAULT_ENDPOINT, timeout: float = 10.0):
         self.token = token
         self.holder = holder
         self.endpoint = endpoint.rstrip("/")
@@ -137,7 +137,7 @@ from contextlib import asynccontextmanager
 class AsyncBananaClient:
     """Async client using aiohttp for asyncio/aiohttp native stacks (e.g. Marvin/Amos)."""
 
-    def __init__(self, token: Optional[str] = None, holder: str = "zero", endpoint: str = DEFAULT_ENDPOINT, timeout: float = 10.0):
+    def __init__(self, holder: str, token: Optional[str] = None, endpoint: str = DEFAULT_ENDPOINT, timeout: float = 10.0):
         self.token = token
         self.holder = holder
         self.endpoint = endpoint.rstrip("/")

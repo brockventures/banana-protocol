@@ -24,7 +24,7 @@
 ```python
 from banana import BananaClient, BananaBlockedError
 
-client = BananaClient(token="YOUR_BEARER_TOKEN", holder="zero")
+client = BananaClient(holder="zero", token="YOUR_BEARER_TOKEN")
 
 # Pre-flight check & atomic lease hold:
 try:
