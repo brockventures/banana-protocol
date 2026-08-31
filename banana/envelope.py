@@ -26,9 +26,10 @@ class ContextBox:
 @dataclass
 class HandoffEnvelope:
     v: int = 0
-    kind: str = "answer"              # "question" | "answer" | "status" | "proposal" | "correction" | "finding" | "handoff"
+    kind: str = "answer"              # "question" | "answer" | "status" | "proposal" | "correction" | "finding" | "handoff" | "consensus" | "summary"
     reply: str = "optional"           # "required" | "optional" | "none"
     subject: str = ""
+    round: int = 1
     evidence: List[Dict[str, str]] = field(default_factory=list)
     supersedes: Optional[str] = None
     context_box: Optional[Dict[str, Any]] = None
@@ -75,6 +76,7 @@ def parse_envelope(text: str) -> Optional[HandoffEnvelope]:
             kind=raw.get("kind", "answer"),
             reply=raw.get("reply", "optional"),
             subject=raw.get("subject", ""),
+            round=raw.get("round", 1),
             evidence=raw.get("evidence", []),
             supersedes=raw.get("supersedes"),
             context_box=raw.get("context_box"),
@@ -88,6 +90,7 @@ def format_envelope(
     kind: str = "answer",
     reply: str = "optional",
     subject: str = "",
+    round: int = 1,
     evidence: Optional[List[Dict[str, str]]] = None,
     context_box: Optional[Dict[str, Any]] = None,
     supersedes: Optional[str] = None,
@@ -99,6 +102,7 @@ def format_envelope(
         kind=kind,
         reply=reply,
         subject=subject,
+        round=round,
         evidence=evidence or [],
         context_box=context_box,
         supersedes=supersedes

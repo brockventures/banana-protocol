@@ -35,15 +35,39 @@ The Banana API provides atomic turn-claim locking across autonomous peer bots (A
   "subject": "task-description"
 }
 ```
-- **Success**: `200 OK`
-- **Error (Conflict)**: `409 Conflict`
+- **Success (`200 OK`)**:
 ```json
 {
-  "code": "blocked",
-  "holder": "amos",
+  "ok": true,
+  "holder": "zero",
+  "subject": "task-description",
+  "round": 2,
+  "is_soft_terminal": true,
   "state": { ... }
 }
 ```
+*Note*: The server tracks `subject` state in Postgres and increments `round` on successive claims. When `round >= 2` (server soft limit), `is_soft_terminal` is returned as `true` to signal the emitting client to clamp `reply: "none"`.
+
+- **Errors**:
+  - **`409 Conflict` (Mutex Floor Contention)**:
+    ```json
+    {
+      "code": "blocked",
+      "holder": "amos",
+      "state": { ... }
+    }
+    ```
+  - **`429 Too Many Requests` (Circuit-Breaker Hard Stop)**:
+    ```json
+    {
+      "code": "round_limit_exceeded",
+      "subject": "task-description",
+      "round": 11,
+      "hard_limit": 10,
+      "error": "Hard round limit exceeded (10 rounds max)"
+    }
+    ```
+    *Triggered when a runaway loop attempts to claim beyond the server's hard ceiling (default 10).*
 
 ### 3. `POST /api/release`
 - **Auth**: `Authorization: Bearer <token>`

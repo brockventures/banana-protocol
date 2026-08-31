@@ -22,6 +22,14 @@ class BananaBlockedError(BananaError):
         self.current_holder = current_holder
         self.state = state
 
+class BananaRoundLimitExceededError(BananaError):
+    """Raised on HTTP 429 when a subject has exceeded the server's hard round limit."""
+    def __init__(self, round: int, hard_limit: int, subject: str = ""):
+        super().__init__(f"Round limit exceeded for subject '{subject}': reached round {round} (hard limit: {hard_limit})")
+        self.round = round
+        self.hard_limit = hard_limit
+        self.subject = subject
+
 class BananaClient:
     """Zero-dependency client for the Banana turn-claim API."""
 
@@ -78,13 +86,19 @@ class BananaClient:
                 return json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as e:
             body = {}
-            if e.headers.get_content_type() == "application/json":
+            if (hasattr(e.headers, "get_content_type") and e.headers.get_content_type() == "application/json") or (isinstance(e.headers, dict) and "json" in str(e.headers.get("Content-Type", ""))):
                 try:
                     body = json.loads(e.read().decode("utf-8"))
                 except Exception:
                     pass
             if e.code == 409 and body.get("code") == "blocked":
                 raise BananaBlockedError(body.get("holder", "unknown"), body.get("state", {}))
+            if e.code == 429 and body.get("code") == "round_limit_exceeded":
+                raise BananaRoundLimitExceededError(
+                    round=body.get("round", 0),
+                    hard_limit=body.get("hard_limit", 10),
+                    subject=body.get("subject", subject)
+                )
             raise BananaError(f"HTTP {e.code}: {body.get('error') or body.get('code') or e.reason}")
 
     def release(self) -> Dict[str, Any]:
@@ -178,6 +192,12 @@ class AsyncBananaClient:
                 body = await resp.json()
                 if resp.status == 409 and body.get("code") == "blocked":
                     raise BananaBlockedError(body.get("holder", "unknown"), body.get("state", {}))
+                if resp.status == 429 and body.get("code") == "round_limit_exceeded":
+                    raise BananaRoundLimitExceededError(
+                        round=body.get("round", 0),
+                        hard_limit=body.get("hard_limit", 10),
+                        subject=body.get("subject", subject)
+                    )
                 if resp.status != 200:
                     raise BananaError(f"HTTP {resp.status}: {body.get('error') or body.get('code')}")
                 return body
