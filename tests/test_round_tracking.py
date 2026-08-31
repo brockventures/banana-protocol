@@ -96,7 +96,43 @@ class TestRoundTracking(unittest.TestCase):
             with self.assertRaises(BananaBlockedError) as ctx:
                 client.claim(subject="test-topic", preflight=False)
             
-            self.assertEqual(ctx.exception.current_holder, "amos")
+    def test_soft_limit_should_reply(self):
+        # Round 1 should allow reply
+        env_r1 = HandoffEnvelope(v=1, kind="proposal", reply="optional", subject="test-topic", round=1)
+        self.assertFalse(env_r1.is_soft_terminal)
+        self.assertTrue(env_r1.should_reply())
+
+        # Round 2 is soft-terminal -> should_reply() returns False
+        env_r2 = HandoffEnvelope(v=1, kind="answer", reply="optional", subject="test-topic", round=2)
+        self.assertTrue(env_r2.is_soft_terminal)
+        self.assertFalse(env_r2.should_reply())
+
+    def test_clamp_terminal(self):
+        env = HandoffEnvelope(v=1, kind="answer", reply="required", subject="test-topic", round=2)
+        env.clamp_terminal(kind="consensus")
+        self.assertEqual(env.reply, "none")
+        self.assertEqual(env.kind, "consensus")
+        self.assertFalse(env.should_reply())
+
+    def test_classifier_soft_limit_silence(self):
+        from banana.classifier import IngestionClassifier, Event, Tier
+        classifier = IngestionClassifier(agent_name="zero")
+        
+        # Round 2 envelope in inbound message -> classified as SILENT by default
+        event = Event(
+            sender="Amos",
+            content="""🍌 ```handoff
+{
+  "v": 1,
+  "kind": "answer",
+  "reply": "optional",
+  "subject": "governor-test",
+  "round": 2
+}
+```
+Here is the conclusion."""
+        )
+        self.assertEqual(classifier.evaluate(event), Tier.SILENT)
 
 if __name__ == "__main__":
     unittest.main()

@@ -36,9 +36,24 @@ class HandoffEnvelope:
     to: Optional[str] = None
     target: Optional[str] = None
 
-    def should_reply(self) -> bool:
-        """Returns False if reply is explicitly 'none'."""
-        return self.reply.lower() != "none"
+    @property
+    def is_soft_terminal(self) -> bool:
+        """Returns True if the envelope has reached the soft round limit (>= 2)."""
+        return self.round >= 2
+
+    def should_reply(self, max_rounds: int = 2) -> bool:
+        """Returns False if reply is explicitly 'none' or if round has reached max_rounds."""
+        if self.reply.lower() == "none":
+            return False
+        if self.round >= max_rounds:
+            return False
+        return True
+
+    def clamp_terminal(self, kind: str = "summary") -> "HandoffEnvelope":
+        """Clamp envelope into terminal state (reply: none, kind: summary/consensus)."""
+        self.reply = "none"
+        self.kind = kind
+        return self
 
     def is_addressed_to(self, agent_name: str) -> bool:
         """Check whether this envelope targets a specific agent."""
