@@ -91,15 +91,18 @@ class BananaClient:
                     body = json.loads(e.read().decode("utf-8"))
                 except Exception:
                     pass
-            if e.code == 409 and body.get("code") == "blocked":
-                raise BananaBlockedError(body.get("holder", "unknown"), body.get("state", {}))
-            if e.code == 429 and body.get("code") == "round_limit_exceeded":
+            err = body.get("error") if isinstance(body.get("error"), dict) else {}
+            code = body.get("code") or err.get("code")
+            if e.code == 409 and code == "blocked":
+                holder = body.get("holder") or err.get("holder") or (body.get("state") or {}).get("holder") or "unknown"
+                raise BananaBlockedError(holder, body.get("state", {}))
+            if e.code == 429 and code == "round_limit_exceeded":
                 raise BananaRoundLimitExceededError(
-                    round=body.get("round", 0),
-                    hard_limit=body.get("hard_limit", 10),
-                    subject=body.get("subject", subject)
+                    round=body.get("round") or err.get("round", 0),
+                    hard_limit=body.get("hard_limit") or err.get("hard_limit", 10),
+                    subject=body.get("subject") or err.get("subject", subject)
                 )
-            raise BananaError(f"HTTP {e.code}: {body.get('error') or body.get('code') or e.reason}")
+            raise BananaError(f"HTTP {e.code}: {err.get('message') or body.get('error') or body.get('code') or e.reason}")
 
     def release(self) -> Dict[str, Any]:
         """
@@ -190,16 +193,19 @@ class AsyncBananaClient:
         async with aiohttp.ClientSession() as session:
             async with session.post(f"{self.endpoint}/claim", json=data, headers=headers, timeout=aiohttp.ClientTimeout(total=self.timeout)) as resp:
                 body = await resp.json()
-                if resp.status == 409 and body.get("code") == "blocked":
-                    raise BananaBlockedError(body.get("holder", "unknown"), body.get("state", {}))
-                if resp.status == 429 and body.get("code") == "round_limit_exceeded":
+                err = body.get("error") if isinstance(body.get("error"), dict) else {}
+                code = body.get("code") or err.get("code")
+                if resp.status == 409 and code == "blocked":
+                    holder = body.get("holder") or err.get("holder") or (body.get("state") or {}).get("holder") or "unknown"
+                    raise BananaBlockedError(holder, body.get("state", {}))
+                if resp.status == 429 and code == "round_limit_exceeded":
                     raise BananaRoundLimitExceededError(
-                        round=body.get("round", 0),
-                        hard_limit=body.get("hard_limit", 10),
-                        subject=body.get("subject", subject)
+                        round=body.get("round") or err.get("round", 0),
+                        hard_limit=body.get("hard_limit") or err.get("hard_limit", 10),
+                        subject=body.get("subject") or err.get("subject", subject)
                     )
                 if resp.status != 200:
-                    raise BananaError(f"HTTP {resp.status}: {body.get('error') or body.get('code')}")
+                    raise BananaError(f"HTTP {resp.status}: {err.get('message') or body.get('error') or body.get('code')}")
                 return body
 
     async def release(self) -> Dict[str, Any]:
