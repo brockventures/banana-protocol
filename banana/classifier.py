@@ -34,15 +34,20 @@ class IngestionClassifier:
         content = event.content.strip()
         env = event.envelope or parse_envelope(content)
 
-        # 1. Handoff envelope rule: reply: "none" is unconditionally silent
-        if env and not env.should_reply():
-            return Tier.SILENT
+        # 1. Handoff envelope rule: evaluate decoupled should_reply
+        if env:
+            if not env.should_reply(agent_name=self.agent_name):
+                return Tier.SILENT
 
-        # 2. Handoff targeted specifically to this agent
-        if env and env.is_addressed_to(self.agent_name):
-            return Tier.DIRECT
+            # Handoff targeted specifically to this agent
+            if env.is_addressed_to(self.agent_name):
+                return Tier.DIRECT
 
-        # 3. Direct Discord @-mention or reply
+            # Baton handoff targeted to someone else -> silent
+            if env.reply.lower() == "baton" and (env.to or env.target):
+                return Tier.SILENT
+
+        # 2. Direct Discord @-mention or reply
         if event.is_reply_to_agent:
             return Tier.DIRECT
 
@@ -52,16 +57,16 @@ class IngestionClassifier:
         if event.mentions and self.bot_id and self.bot_id in event.mentions:
             return Tier.DIRECT
 
-        # 4. Name invocation at start of prompt (e.g. "Zero:", "Hey zero,")
+        # 3. Name invocation at start of prompt (e.g. "Zero:", "Hey zero,")
         name_pattern = rf"(?:^|[\s,;])(?:hey\s+)?@?{re.escape(self.agent_name)}(?:\b|[!?:,])"
         if re.search(name_pattern, content, re.IGNORECASE):
             return Tier.DIRECT
 
-        # 5. Bot noise filter: Ignore peer bot chatter under 4 words without explicit targeting
+        # 4. Bot noise filter: Ignore peer bot chatter under 4 words without explicit targeting
         if event.is_bot:
             words = [w for w in content.split() if any(c.isalnum() for c in w)]
             if len(words) < 4:
                 return Tier.SILENT
 
-        # 6. Unaddressed broadcast discourse -> Candidate for semantic classifier or silent
+        # 5. Unaddressed broadcast discourse -> Candidate for semantic classifier or silent
         return Tier.CLASSIFIED

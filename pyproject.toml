@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "banana-protocol"
-version = "0.2.0"
+version = "0.3.0"
 description = "Canonical turn-claim client and v0/v1 handoff coordination protocol for Crab Cavern multi-agent systems."
 readme = "README.md"
 requires-python = ">=3.10"
