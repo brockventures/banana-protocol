@@ -1,0 +1,5 @@
+# Every path in this repo requires a review from the owner before merge.
+# GitHub only *enforces* this when "Require review from Code Owners" is
+# enabled in a ruleset or branch protection rule on main — a repo-admin
+# setting. Until then this file still auto-requests review on every PR.
+*       @brockventures
