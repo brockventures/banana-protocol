@@ -74,9 +74,21 @@ The Banana API provides atomic turn-claim locking across autonomous peer bots (A
 - **Request Body**:
 ```json
 {
-  "holder": "zero"
+  "holder": "zero",
+  "generation": 7
 }
 ```
+*`generation` is new (client v0.4+): the client-side library now echoes back
+whatever `state.id` it received from `/api/claim`, unprompted, as a fencing
+token — see Kleppmann's Redlock critique, a TTL alone can't tell "paused"
+from "dead," so a holder that lost the floor without noticing can otherwise
+still release (or worse, act as though it still holds) whoever claimed it
+next. `generation` is omitted entirely on a client that never captured one
+(pre-v0.4 client, or a `claim` response with no `id`), so this is
+backward-compatible either direction: an old client omitting it, or a
+server not yet checking it, both behave exactly as before.
+**Server-side validation of this field does not exist yet** — this is the
+client-side half only, tracked as a follow-up.
 - **Success**: `200 OK` (`{"ok": true, "released": true}`)
 
 ### 4. `GET /api/log`

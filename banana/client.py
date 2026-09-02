@@ -38,6 +38,14 @@ class BananaClient:
         self.holder = holder
         self.endpoint = endpoint.rstrip("/")
         self.timeout = timeout
+        # Fencing token (Kleppmann's Redlock critique: a TTL alone can't
+        # distinguish "paused" from "dead", so a late-recovering holder that
+        # never noticed it lost the lock can still stomp whoever claimed it
+        # next). Captured from the claim response's `state.id`, echoed back
+        # on release so the server has what it needs to reject a stale
+        # release once it validates this field. Purely additive until then —
+        # a server that ignores `generation` behaves exactly as before.
+        self._generation: Optional[int] = None
 
     def get_status(self) -> Dict[str, Any]:
         """
@@ -55,6 +63,20 @@ class BananaClient:
             return status.get("holder") is None
         except Exception:
             return False
+
+    @staticmethod
+    def _extract_generation(body: Dict[str, Any]) -> Optional[int]:
+        """Pull the fencing token out of a claim response. Checks `state.id`
+        (the shape `/api/status` and `/api/claim` already document) and falls
+        back to a top-level `generation`/`id`, since the exact key a given
+        server version returns isn't guaranteed. None on any miss — a server
+        with no concept of this yet just means fencing stays a no-op."""
+        state = body.get("state") if isinstance(body.get("state"), dict) else {}
+        for key, source in (("generation", body), ("id", state), ("id", body)):
+            val = source.get(key)
+            if isinstance(val, int):
+                return val
+        return None
 
     def claim(self, subject: str = "", preflight: bool = True) -> Dict[str, Any]:
         """
@@ -83,7 +105,9 @@ class BananaClient:
 
         try:
             with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                return json.loads(resp.read().decode("utf-8"))
+                result = json.loads(resp.read().decode("utf-8"))
+                self._generation = self._extract_generation(result)
+                return result
         except urllib.error.HTTPError as e:
             body = {}
             if (hasattr(e.headers, "get_content_type") and e.headers.get_content_type() == "application/json") or (isinstance(e.headers, dict) and "json" in str(e.headers.get("Content-Type", ""))):
@@ -107,11 +131,20 @@ class BananaClient:
     def release(self) -> Dict[str, Any]:
         """
         Release the floor after posting.
+
+        Echoes back the fencing token captured on claim(), if any, so a
+        server that validates it can reject a stale release from a holder
+        that lost the lock without ever finding out. Omitted entirely when
+        there is nothing to echo (no prior claim(), or a server that never
+        returned one) — same request shape as before in that case.
         """
         if not self.token:
             raise BananaError("Bearer token required to release the floor.")
 
-        data = json.dumps({"holder": self.holder}).encode("utf-8")
+        payload: Dict[str, Any] = {"holder": self.holder}
+        if self._generation is not None:
+            payload["generation"] = self._generation
+        data = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(
             f"{self.endpoint}/release",
             data=data,
@@ -123,7 +156,9 @@ class BananaClient:
 
         try:
             with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                return json.loads(resp.read().decode("utf-8"))
+                result = json.loads(resp.read().decode("utf-8"))
+                self._generation = None
+                return result
         except urllib.error.HTTPError as e:
             body = {}
             if e.headers.get_content_type() == "application/json":
@@ -159,6 +194,9 @@ class AsyncBananaClient:
         self.holder = holder
         self.endpoint = endpoint.rstrip("/")
         self.timeout = timeout
+        # See BananaClient._generation above — same fencing-token rationale,
+        # sync and async clients kept in lockstep.
+        self._generation: Optional[int] = None
 
     async def get_status(self) -> Dict[str, Any]:
         import aiohttp
@@ -206,14 +244,19 @@ class AsyncBananaClient:
                     )
                 if resp.status != 200:
                     raise BananaError(f"HTTP {resp.status}: {err.get('message') or body.get('error') or body.get('code')}")
+                self._generation = BananaClient._extract_generation(body)
                 return body
 
     async def release(self) -> Dict[str, Any]:
+        """Same fencing-token echo as the sync client's release() — see there
+        for the rationale."""
         import aiohttp
         if not self.token:
             raise BananaError("Bearer token required to release the floor.")
 
-        data = {"holder": self.holder}
+        data: Dict[str, Any] = {"holder": self.holder}
+        if self._generation is not None:
+            data["generation"] = self._generation
         headers = {
             "Authorization": f"Bearer {self.token}",
             "Content-Type": "application/json"
@@ -224,6 +267,7 @@ class AsyncBananaClient:
                 body = await resp.json()
                 if resp.status != 200:
                     raise BananaError(f"HTTP {resp.status}: {body.get('error') or body.get('code')}")
+                self._generation = None
                 return body
 
     @asynccontextmanager
