@@ -27,7 +27,7 @@ class ContextBox:
 class HandoffEnvelope:
     v: int = 1
     kind: str = "answer"              # "question" | "answer" | "status" | "proposal" | "correction" | "finding" | "handoff" | "consensus" | "summary"
-    reply: str = "open"               # "open" | "baton" | "none" (legacy: "required" | "optional")
+    reply: str = "optional"           # "required" | "optional" | "none"
     floor: str = "open"               # "open" | "closed"
     scope: str = "channel"            # "channel" | "direct"
     subject: str = ""
@@ -126,7 +126,7 @@ def parse_envelope(text: str) -> Optional[HandoffEnvelope]:
         return None
     try:
         raw = json.loads(m.group(1))
-        reply = raw.get("reply", "open" if raw.get("v", 0) >= 1 else "optional")
+        reply = raw.get("reply", "optional")
         floor = raw.get("floor")
         if floor is None:
             floor = "closed" if str(reply).lower() == "none" else "open"
@@ -151,7 +151,7 @@ def parse_envelope(text: str) -> Optional[HandoffEnvelope]:
 
 def format_envelope(
     kind: str = "answer",
-    reply: str = "open",
+    reply: str = "optional",
     floor: Optional[str] = None,
     scope: str = "channel",
     subject: str = "",

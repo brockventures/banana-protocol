@@ -71,11 +71,12 @@ class TestFloorGovernance(unittest.TestCase):
         self.assertEqual(classifier.evaluate(ev), Tier.SILENT)
 
     def test_baton_intent_routes_directly_to_target(self):
-        """reply: baton with to: peer gives DIRECT to peer and SILENT to non-targets."""
+        """reply: required (or baton) with to: peer gives DIRECT to peer and SILENT to non-targets."""
+        # Using canonical reply: required with to: amos
         env = HandoffEnvelope(
             v=1,
             kind="handoff",
-            reply="baton",
+            reply="required",
             floor="open",
             to="amos",
             subject="wal-implementation",

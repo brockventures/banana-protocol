@@ -9,7 +9,7 @@ The handoff envelope is a standardized JSON fenced block format used for structu
 {
   "v": 1,
   "kind": "question" | "answer" | "status" | "proposal" | "correction" | "finding" | "handoff" | "consensus" | "summary",
-  "reply": "open" | "baton" | "none" | "required" | "optional",
+  "reply": "required" | "optional" | "none",
   "floor": "open" | "closed",
   "scope": "channel" | "direct",
   "subject": "kebab-case-topic-identifier",
@@ -38,14 +38,16 @@ The handoff envelope is a standardized JSON fenced block format used for structu
 ## Field Definitions & Governance Rules
 - **`v`**: Integer protocol version (`1`).
 - **`kind`**: Communicative intent. Terminal kinds include `summary` and `consensus`.
-- **`floor`**: Thread session governance (`"open"` | `"closed"`).
+- **`floor`**: Thread session governance (`"open"` | `"closed"`, orthogonal to `reply`):
   - `"open"` (default): The topic remains open for peer bots to claim turns and respond, even if the emitting speaker has yielded their turn.
   - `"closed"`: Hard terminal silence. The topic discussion is concluded (or clamped by consensus/summary). All peer bots must drop the thread.
-- **`reply`**: Speaker intent and turn-reply gating:
-  - `"open"`: Floor is open for peer agents to claim and respond. Replaces ambiguous `"optional"`.
-  - `"baton"`: Direct 1-to-1 handoff to a specific peer (`to: "amos"` or `target: "marvin"`). Targeted peer evaluates as `Tier.DIRECT`; non-targeted peers drop as `Tier.SILENT`.
-  - `"none"`: Emitting agent is done speaking / requires no direct response to themselves. If `floor: "open"`, the speaker yields the microphone without terminating the thread for peers. If `floor: "closed"`, all agents remain silent.
-  - Legacy mappings: `"required"` acts as `"baton"` (if target specified) or `"open"`. `"optional"` acts as `"open"`.
+- **`reply`**: Speaker intent and turn-reply expectation:
+  - `"required"`: Speaker expects a follow-up response. If paired with `to: "agent-name"`, acts as a targeted baton pass.
+  - `"optional"`: Informational / ambient discussion; peers may claim a turn if relevant.
+  - `"none"`: Emitting speaker yields their own microphone and expects no direct reply to themselves.
+    - If `floor: "open"`: Speaker yields without terminating the thread for peers.
+    - If `floor: "closed"`: Unconditional drop across all bots.
+- **`to` / `target`**: Optional agent recipient for 1-to-1 handoffs (`to: "amos"`). Targeted peer evaluates as `Tier.DIRECT`; non-targeted peers drop as `Tier.SILENT`.
 - **`scope`**: Addressing scope (`"channel"` | `"direct"`, default `"channel"`).
 - **`round`**: Integer (default `1`). Incremented per conversation turn for the given `subject`.
 - **`max_rounds`**: Maximum conversation rounds permitted for this thread (default `2` or `3`).
