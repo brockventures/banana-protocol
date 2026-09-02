@@ -80,6 +80,8 @@ class BananaClient:
         # release once it validates this field. Purely additive until then —
         # a server that ignores `generation` behaves exactly as before.
         self._generation: Optional[int] = None
+        self._heartbeat_thread = None
+        self._heartbeat_stop = None
 
     def get_status(self) -> Dict[str, Any]:
         """
@@ -199,6 +201,8 @@ class BananaClient:
         if not self.token:
             raise BananaError("Bearer token required to release the floor.")
 
+        self.stop_heartbeat()
+
         payload: Dict[str, Any] = {"holder": self.holder}
         if self._generation is not None:
             payload["generation"] = self._generation
@@ -219,21 +223,116 @@ class BananaClient:
                 return result
         except urllib.error.HTTPError as e:
             body = {}
-            if e.headers.get_content_type() == "application/json":
+            if (hasattr(e.headers, "get_content_type") and e.headers.get_content_type() == "application/json") or (isinstance(e.headers, dict) and "json" in str(e.headers.get("Content-Type", ""))):
                 try:
                     body = json.loads(e.read().decode("utf-8"))
                 except Exception:
                     pass
             raise BananaError(f"HTTP {e.code}: {body.get('error') or body.get('code') or e.reason}")
 
+    def heartbeat(self) -> Dict[str, Any]:
+        """
+        Renew the current claim's liveness without re-claiming it.
+
+        The server (api/heartbeat.js) evicts a claim after EVICTION_SEC
+        (120s as of 2026-09-02) of silence on last_active_ts — a
+        heartbeat is what refreshes that clock for a turn that is
+        legitimately still running, decoupling "still working" from
+        "actually dead" (see specs/banana-turn-claim-api.md §7). Call
+        this on your own timer well under 120s; 30-40s leaves comfortable
+        margin for one missed beat. Prefer start_heartbeat() over calling
+        this by hand on a loop — it manages the timer thread for you.
+
+        Echoes the captured fencing token the same way release() does, so
+        a heartbeat from a superseded claim instance is rejected (409
+        stale_generation) rather than silently reviving state that has
+        already moved on.
+        """
+        if not self.token:
+            raise BananaError("Bearer token required to heartbeat the floor.")
+
+        payload: Dict[str, Any] = {"holder": self.holder}
+        if self._generation is not None:
+            payload["generation"] = self._generation
+        data = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(
+            f"{self.endpoint}/heartbeat",
+            data=data,
+            headers={
+                "Authorization": f"Bearer {self.token}",
+                "Content-Type": "application/json"
+            }
+        )
+
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            body = {}
+            if (hasattr(e.headers, "get_content_type") and e.headers.get_content_type() == "application/json") or (isinstance(e.headers, dict) and "json" in str(e.headers.get("Content-Type", ""))):
+                try:
+                    body = json.loads(e.read().decode("utf-8"))
+                except Exception:
+                    pass
+            err = body.get("error") if isinstance(body.get("error"), dict) else {}
+            raise BananaError(f"HTTP {e.code}: {err.get('message') or body.get('error') or body.get('code') or e.reason}")
+
+    def start_heartbeat(self, interval: float = 30.0) -> None:
+        """
+        Start a daemon thread that calls heartbeat() every `interval`
+        seconds (default 30s, comfortably under the server's 120s
+        eviction ceiling) until stop_heartbeat() runs or the process
+        exits. Safe to call again to change the interval — it stops any
+        existing timer first.
+
+        Best-effort: a failed heartbeat (e.g. you're no longer the
+        current holder) is swallowed in the background thread rather
+        than raised, since nothing is positioned to catch it there — the
+        next claim()/release()/heartbeat() call you make directly is
+        where you would find out your floor state changed.
+        """
+        import threading
+        self.stop_heartbeat()
+        stop_event = threading.Event()
+
+        def _loop():
+            while not stop_event.wait(interval):
+                try:
+                    self.heartbeat()
+                except Exception:
+                    pass
+
+        self._heartbeat_stop = stop_event
+        self._heartbeat_thread = threading.Thread(target=_loop, daemon=True)
+        self._heartbeat_thread.start()
+
+    def stop_heartbeat(self) -> None:
+        """Stop the background heartbeat thread started by start_heartbeat(),
+        if one is running. Safe to call even if none was ever started."""
+        stop_event = self._heartbeat_stop
+        if stop_event is not None:
+            stop_event.set()
+        thread = self._heartbeat_thread
+        if thread is not None and thread.is_alive():
+            thread.join(timeout=1.0)
+        self._heartbeat_stop = None
+        self._heartbeat_thread = None
+
     @contextmanager
-    def hold(self, subject: str = "", preflight: bool = True):
+    def hold(self, subject: str = "", preflight: bool = True, heartbeat_interval: Optional[float] = None):
         """
         Atomic context manager:
         with client.hold("task description"):
             # send to discord
+
+        Pass heartbeat_interval (seconds) to automatically run
+        start_heartbeat() for the duration of the block — useful for a
+        turn whose length isn't known up front. Omitted by default: most
+        callers hold the floor briefly and don't need it.
         """
         self.claim(subject=subject, preflight=preflight)
+        if heartbeat_interval is not None:
+            self.start_heartbeat(heartbeat_interval)
         try:
             yield
         finally:
@@ -257,6 +356,7 @@ class AsyncBananaClient:
         # See BananaClient._generation above — same fencing-token rationale,
         # sync and async clients kept in lockstep.
         self._generation: Optional[int] = None
+        self._heartbeat_task = None
 
     def get_cached_subject(self, key: str = "default") -> Optional[str]:
         return self.subject_cache.get(key)
@@ -327,6 +427,8 @@ class AsyncBananaClient:
         if not self.token:
             raise BananaError("Bearer token required to release the floor.")
 
+        await self.stop_heartbeat()
+
         data: Dict[str, Any] = {"holder": self.holder}
         if self._generation is not None:
             data["generation"] = self._generation
@@ -343,9 +445,82 @@ class AsyncBananaClient:
                 self._generation = None
                 return body
 
+    async def heartbeat(self) -> Dict[str, Any]:
+        """Async counterpart to BananaClient.heartbeat() — see there for the
+        full rationale. Renews last_active_ts on the current claim without
+        re-claiming it; echoes the fencing token so a stale/superseded claim
+        instance gets 409 stale_generation instead of silently reviving."""
+        import aiohttp
+        if not self.token:
+            raise BananaError("Bearer token required to heartbeat the floor.")
+
+        data: Dict[str, Any] = {"holder": self.holder}
+        if self._generation is not None:
+            data["generation"] = self._generation
+        headers = {
+            "Authorization": f"Bearer {self.token}",
+            "Content-Type": "application/json"
+        }
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(f"{self.endpoint}/heartbeat", json=data, headers=headers, timeout=aiohttp.ClientTimeout(total=self.timeout)) as resp:
+                body = await resp.json()
+                if resp.status != 200:
+                    err = body.get("error") if isinstance(body.get("error"), dict) else {}
+                    raise BananaError(f"HTTP {resp.status}: {err.get('message') or body.get('error') or body.get('code')}")
+                return body
+
+    def start_heartbeat(self, interval: float = 30.0) -> None:
+        """Start an asyncio background task calling heartbeat() every
+        `interval` seconds (default 30s, under the server's 120s eviction
+        ceiling). Must be called from a running event loop. Best-effort:
+        a failed heartbeat is swallowed in the task, not raised — the next
+        direct claim()/release()/heartbeat() call is where a caller finds
+        out its floor state changed."""
+        import asyncio
+        if self._heartbeat_task is not None:
+            self._heartbeat_task.cancel()
+
+        async def _loop():
+            try:
+                while True:
+                    await asyncio.sleep(interval)
+                    try:
+                        await self.heartbeat()
+                    except Exception:
+                        pass
+            except asyncio.CancelledError:
+                pass
+
+        self._heartbeat_task = asyncio.ensure_future(_loop())
+
+    async def stop_heartbeat(self) -> None:
+        """Stop the background task started by start_heartbeat(), if one is
+        running. Safe to call even if none was ever started."""
+        import asyncio
+        task = self._heartbeat_task
+        if task is not None:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                # asyncio.CancelledError is a BaseException (3.8+), not an
+                # Exception — a task cancelled before its first run throws
+                # this at the throw()/await point itself rather than inside
+                # _loop()'s own try/except, so this is the real backstop,
+                # not a redundant one.
+                pass
+            except Exception:
+                pass
+        self._heartbeat_task = None
+
     @asynccontextmanager
-    async def hold(self, subject: str = "", preflight: bool = True):
+    async def hold(self, subject: str = "", preflight: bool = True, heartbeat_interval: Optional[float] = None):
+        """See BananaClient.hold() — same heartbeat_interval convenience,
+        async flavor."""
         await self.claim(subject=subject, preflight=preflight)
+        if heartbeat_interval is not None:
+            self.start_heartbeat(heartbeat_interval)
         try:
             yield
         finally:
