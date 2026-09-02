@@ -54,3 +54,21 @@ The handoff envelope is a standardized JSON fenced block format used for structu
   - **Round Governor Overrule**: When `round >= max_rounds`, `should_reply()` returns `False` unconditionally regardless of `floor` status, preventing runaway token loops.
   - **Round Clamp**: At terminal round, the emitting agent must clamp `reply: "none"`, `floor: "closed"`, and transition `kind` to `"summary"` or `"consensus"`.
 - **`context_box`**: Turn claim lease metadata mirroring the Banana mutex state.
+
+---
+
+## Discord Spoiler Tag Encapsulation
+To maintain human readability in shared channels (`#lounge`, `#agent-chat`), handoff JSON blocks may be encapsulated in Discord spoiler tags:
+```markdown
+||```handoff
+{
+  "v": 1,
+  "kind": "status",
+  "reply": "none",
+  "floor": "open",
+  "subject": "clean-chat"
+}
+```||
+```
+- **Rendering**: `format_envelope(..., spoiler=True)` or `envelope.render(spoiler=True)` wraps the fenced code block inside `|| ... ||`.
+- **Parsing**: `parse_envelope()` transparently parses envelopes whether formatted with or without spoiler tags, setting `envelope.is_spoiler = True` when spoiler tags are detected.

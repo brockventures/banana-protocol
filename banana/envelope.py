@@ -38,6 +38,7 @@ class HandoffEnvelope:
     context_box: Optional[Dict[str, Any]] = None
     to: Optional[str] = None
     target: Optional[str] = None
+    is_spoiler: bool = False
 
     @property
     def is_soft_terminal(self) -> bool:
@@ -108,13 +109,17 @@ class HandoffEnvelope:
 
     def to_dict(self) -> Dict[str, Any]:
         d = asdict(self)
+        d.pop("is_spoiler", None)
         # Drop None values for cleaner payload
         return {k: v for k, v in d.items() if v is not None}
 
-    def render(self, prefix_banana: bool = True) -> str:
-        """Render the envelope as a fenced code block."""
+    def render(self, prefix_banana: bool = True, spoiler: Optional[bool] = None) -> str:
+        """Render the envelope as a fenced code block, optionally enclosed in Discord spoiler tags."""
+        use_spoiler = self.is_spoiler if spoiler is None else spoiler
         body = json.dumps(self.to_dict(), indent=2)
         prefix = "🍌 " if prefix_banana else ""
+        if use_spoiler:
+            return f"{prefix}||```handoff\n{body}\n```||"
         return f"{prefix}```handoff\n{body}\n```"
 
 def parse_envelope(text: str) -> Optional[HandoffEnvelope]:
@@ -131,6 +136,8 @@ def parse_envelope(text: str) -> Optional[HandoffEnvelope]:
         if floor is None:
             floor = "closed" if str(reply).lower() == "none" else "open"
 
+        is_spoiler = bool(re.search(r"\|\|\s*```handoff\s*\{.*?\}\s*```\s*\|\|", text, re.DOTALL))
+
         return HandoffEnvelope(
             v=raw.get("v", 1 if "v" in raw else 0),
             kind=raw.get("kind", "answer"),
@@ -144,7 +151,8 @@ def parse_envelope(text: str) -> Optional[HandoffEnvelope]:
             supersedes=raw.get("supersedes"),
             context_box=raw.get("context_box"),
             to=raw.get("to"),
-            target=raw.get("target")
+            target=raw.get("target"),
+            is_spoiler=is_spoiler
         )
     except Exception:
         return None
@@ -163,7 +171,8 @@ def format_envelope(
     to: Optional[str] = None,
     target: Optional[str] = None,
     prefix_banana: bool = True,
-    v: int = 1
+    v: int = 1,
+    spoiler: bool = False
 ) -> str:
     """Convenience helper to format a fenced handoff JSON block."""
     if floor is None:
@@ -181,9 +190,10 @@ def format_envelope(
         context_box=context_box,
         supersedes=supersedes,
         to=to,
-        target=target
+        target=target,
+        is_spoiler=spoiler
     )
-    return env.render(prefix_banana=prefix_banana)
+    return env.render(prefix_banana=prefix_banana, spoiler=spoiler)
 
 def should_reply(envelope_or_text: Any, agent_name: Optional[str] = None, max_rounds: Optional[int] = None) -> bool:
     """

@@ -24,7 +24,7 @@ The Banana API provides atomic turn-claim locking across autonomous peer bots (A
   }
 }
 ```
-*Note*: `holder` is `null` if unclaimed, released, or past the 10-minute ceiling. Check `holder`, not `state.holder`, for floor availability.
+*Note*: `holder` is `null` if unclaimed, released, or past the 2-minute (120-second) lease ceiling. Check `holder`, not `state.holder`, for floor availability.
 
 ### 2. `POST /api/claim`
 - **Auth**: `Authorization: Bearer <token>`
@@ -95,3 +95,20 @@ client-side half only, tracked as a follow-up.
 - **Auth**: None
 - **Query Params**: `limit=50` (1-200)
 - **Response**: Append-only audit trail of all claim/release actions.
+
+---
+
+### 5. Floor Lease & Eviction Policy (120-Second Timeout)
+- **Ceiling**: Mutex leases automatically expire after **120 seconds (2 minutes)** of silence/inactivity (`DEFAULT_LEASE_TTL_SECONDS = 120`), superseding legacy 90s server timeouts.
+- **Eviction Contract**: If an agent process crashes, hangs, or experiences partition during multi-step tool execution without calling `POST /api/release`, the lock automatically transitions to `holder: null` once `(now - last_active_ts) > 120s`.
+- **Client Handling**: Clients can verify whether an existing state lease is expired using `BananaClient.is_lease_expired(state, ttl_seconds=120)`.
+
+---
+
+### 6. Client-Side Subject Cache
+- **Purpose**: Avoid unnecessary subject re-generation and maintain conversational continuity across multi-turn exchanges on the same topic.
+- **Behavior**:
+  - `BananaClient` and `AsyncBananaClient` maintain an in-memory `SubjectCache`.
+  - When `claim()` is called with `subject=""`, the client automatically falls back to the active cached subject for that thread/channel key.
+  - When an explicit `subject` is provided or returned from the API, the cache updates automatically.
+  - Clients can inspect or clear cached topics via `get_cached_subject(key)`, `set_cached_subject(subject, key)`, and `clear_subject_cache(key)`.

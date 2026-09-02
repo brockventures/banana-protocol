@@ -10,6 +10,7 @@ from contextlib import contextmanager
 from typing import Optional, Dict, Any
 
 DEFAULT_ENDPOINT = "https://banana.mikecarmody.net/api"
+DEFAULT_LEASE_TTL_SECONDS = 120  # Ratified 2-minute floor lease ceiling
 
 class BananaError(Exception):
     """Base exception for all Banana protocol errors."""
@@ -30,14 +31,47 @@ class BananaRoundLimitExceededError(BananaError):
         self.hard_limit = hard_limit
         self.subject = subject
 
+class SubjectCache:
+    """Client-side cache for conversation subjects, preserving topic continuity across turns."""
+    def __init__(self):
+        self._cache: Dict[str, str] = {}
+        self._last_subject: Optional[str] = None
+
+    def get(self, key: str = "default") -> Optional[str]:
+        if key in self._cache:
+            return self._cache[key]
+        if key == "default":
+            return self._last_subject
+        return None
+
+    def set(self, subject: str, key: str = "default") -> None:
+        if subject:
+            self._cache[key] = subject
+            self._last_subject = subject
+
+    def clear(self, key: Optional[str] = None) -> None:
+        if key:
+            removed = self._cache.pop(key, None)
+            if self._last_subject == removed:
+                self._last_subject = None
+        else:
+            self._cache.clear()
+            self._last_subject = None
+
+    @property
+    def last_subject(self) -> Optional[str]:
+        return self._last_subject
+
 class BananaClient:
     """Zero-dependency client for the Banana turn-claim API."""
 
-    def __init__(self, holder: str, token: Optional[str] = None, endpoint: str = DEFAULT_ENDPOINT, timeout: float = 10.0):
+    def __init__(self, holder: str, token: Optional[str] = None, endpoint: str = DEFAULT_ENDPOINT, timeout: float = 10.0, lease_ttl: int = DEFAULT_LEASE_TTL_SECONDS):
         self.token = token
         self.holder = holder
         self.endpoint = endpoint.rstrip("/")
         self.timeout = timeout
+        self.lease_ttl = lease_ttl
+        self.subject_cache = SubjectCache()
         # Fencing token (Kleppmann's Redlock critique: a TTL alone can't
         # distinguish "paused" from "dead", so a late-recovering holder that
         # never noticed it lost the lock can still stomp whoever claimed it
@@ -78,10 +112,30 @@ class BananaClient:
                 return val
         return None
 
-    def claim(self, subject: str = "", preflight: bool = True) -> Dict[str, Any]:
+    @staticmethod
+    def is_lease_expired(state: Dict[str, Any], ttl_seconds: int = DEFAULT_LEASE_TTL_SECONDS, current_time: Optional[float] = None) -> bool:
+        """Check whether a lock state has exceeded the lease duration (default 120s / 2min)."""
+        import time
+        now = current_time if current_time is not None else time.time()
+        claimed_at = state.get("last_active_ts") or state.get("claimed_at")
+        if not claimed_at or not isinstance(claimed_at, (int, float)):
+            return False
+        return (now - float(claimed_at)) > ttl_seconds
+
+    def get_cached_subject(self, key: str = "default") -> Optional[str]:
+        return self.subject_cache.get(key)
+
+    def set_cached_subject(self, subject: str, key: str = "default") -> None:
+        self.subject_cache.set(subject, key)
+
+    def clear_subject_cache(self, key: Optional[str] = None) -> None:
+        self.subject_cache.clear(key)
+
+    def claim(self, subject: str = "", preflight: bool = True, cache_key: str = "default") -> Dict[str, Any]:
         """
         Claim the floor before posting to a shared channel.
         If preflight is True, verifies status before attempting claim.
+        If subject is empty, falls back to subject_cache if available.
         Raises BananaBlockedError on 409 if floor is already claimed.
         """
         if not self.token:
@@ -93,7 +147,8 @@ class BananaClient:
             if current_holder and current_holder != self.holder:
                 raise BananaBlockedError(current_holder, status.get("state", {}))
 
-        data = json.dumps({"holder": self.holder, "subject": subject}).encode("utf-8")
+        effective_subject = subject or self.subject_cache.get(cache_key) or ""
+        data = json.dumps({"holder": self.holder, "subject": effective_subject}).encode("utf-8")
         req = urllib.request.Request(
             f"{self.endpoint}/claim",
             data=data,
@@ -107,6 +162,9 @@ class BananaClient:
             with urllib.request.urlopen(req, timeout=self.timeout) as resp:
                 result = json.loads(resp.read().decode("utf-8"))
                 self._generation = self._extract_generation(result)
+                returned_subject = result.get("subject") or effective_subject
+                if returned_subject:
+                    self.subject_cache.set(returned_subject, cache_key)
                 return result
         except urllib.error.HTTPError as e:
             body = {}
@@ -124,7 +182,7 @@ class BananaClient:
                 raise BananaRoundLimitExceededError(
                     round=body.get("round") or err.get("round", 0),
                     hard_limit=body.get("hard_limit") or err.get("hard_limit", 10),
-                    subject=body.get("subject") or err.get("subject", subject)
+                    subject=body.get("subject") or err.get("subject", effective_subject)
                 )
             raise BananaError(f"HTTP {e.code}: {err.get('message') or body.get('error') or body.get('code') or e.reason}")
 
@@ -189,14 +247,25 @@ from contextlib import asynccontextmanager
 class AsyncBananaClient:
     """Async client using aiohttp for asyncio/aiohttp native stacks (e.g. Marvin/Amos)."""
 
-    def __init__(self, holder: str, token: Optional[str] = None, endpoint: str = DEFAULT_ENDPOINT, timeout: float = 10.0):
+    def __init__(self, holder: str, token: Optional[str] = None, endpoint: str = DEFAULT_ENDPOINT, timeout: float = 10.0, lease_ttl: int = DEFAULT_LEASE_TTL_SECONDS):
         self.token = token
         self.holder = holder
         self.endpoint = endpoint.rstrip("/")
         self.timeout = timeout
+        self.lease_ttl = lease_ttl
+        self.subject_cache = SubjectCache()
         # See BananaClient._generation above — same fencing-token rationale,
         # sync and async clients kept in lockstep.
         self._generation: Optional[int] = None
+
+    def get_cached_subject(self, key: str = "default") -> Optional[str]:
+        return self.subject_cache.get(key)
+
+    def set_cached_subject(self, subject: str, key: str = "default") -> None:
+        self.subject_cache.set(subject, key)
+
+    def clear_subject_cache(self, key: Optional[str] = None) -> None:
+        self.subject_cache.clear(key)
 
     async def get_status(self) -> Dict[str, Any]:
         import aiohttp
@@ -211,7 +280,7 @@ class AsyncBananaClient:
         except Exception:
             return False
 
-    async def claim(self, subject: str = "", preflight: bool = True) -> Dict[str, Any]:
+    async def claim(self, subject: str = "", preflight: bool = True, cache_key: str = "default") -> Dict[str, Any]:
         import aiohttp
         if not self.token:
             raise BananaError("Bearer token required to claim the floor.")
@@ -222,7 +291,8 @@ class AsyncBananaClient:
             if current_holder and current_holder != self.holder:
                 raise BananaBlockedError(current_holder, status.get("state", {}))
 
-        data = {"holder": self.holder, "subject": subject}
+        effective_subject = subject or self.subject_cache.get(cache_key) or ""
+        data = {"holder": self.holder, "subject": effective_subject}
         headers = {
             "Authorization": f"Bearer {self.token}",
             "Content-Type": "application/json"
@@ -240,11 +310,14 @@ class AsyncBananaClient:
                     raise BananaRoundLimitExceededError(
                         round=body.get("round") or err.get("round", 0),
                         hard_limit=body.get("hard_limit") or err.get("hard_limit", 10),
-                        subject=body.get("subject") or err.get("subject", subject)
+                        subject=body.get("subject") or err.get("subject", effective_subject)
                     )
                 if resp.status != 200:
                     raise BananaError(f"HTTP {resp.status}: {err.get('message') or body.get('error') or body.get('code')}")
                 self._generation = BananaClient._extract_generation(body)
+                returned_subject = body.get("subject") or effective_subject
+                if returned_subject:
+                    self.subject_cache.set(returned_subject, cache_key)
                 return body
 
     async def release(self) -> Dict[str, Any]:
