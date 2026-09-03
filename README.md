@@ -65,6 +65,8 @@ decision = classifier.evaluate(Event(sender="Ryan", content="@Zero check this"))
 
 if decision == Tier.DIRECT:
     # Process turn immediately
+elif decision == Tier.CLASSIFIED:
+    # Score via LLM or semantic classifier before claiming floor
 elif decision == Tier.SILENT:
     # Buffer into working memory without waking up turn
 ```

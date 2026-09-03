@@ -32,13 +32,14 @@ class HandoffEnvelope:
     scope: str = "channel"            # "channel" | "direct"
     subject: str = ""
     round: int = 1
-    max_rounds: int = 2
+    max_rounds: int = 4
     evidence: List[Dict[str, str]] = field(default_factory=list)
     supersedes: Optional[str] = None
     context_box: Optional[Dict[str, Any]] = None
     to: Optional[str] = None
     target: Optional[str] = None
     is_spoiler: bool = False
+    sdk: Optional[str] = "0.5.1"
 
     @property
     def is_soft_terminal(self) -> bool:
@@ -50,13 +51,10 @@ class HandoffEnvelope:
         Evaluate whether an agent should reply to this envelope.
         - Returns False if floor is explicitly 'closed'.
         - Returns False if round limit is reached (round >= max_rounds).
-        - If reply is 'baton', returns True only if targeted to agent_name.
-        - If reply is 'none':
-            - If floor is 'closed', returns False.
-            - If floor is 'open':
-                - If agent_name matches current holder/emitter in context_box, returns False (speaker yielded).
-                - Otherwise returns True (floor remains open for peers).
-        - If reply is 'open' (or legacy 'optional'): returns True while floor is open and round limit not exceeded.
+        - If reply is 'none': returns False unconditionally (speaker yielded; not a summons).
+        - If reply is 'baton': returns True only if targeted to agent_name.
+        - If reply is 'required': returns True if targeted to agent_name or unaddressed.
+        - If reply is 'optional' (or legacy 'open'): returns True while floor is open and round limit not exceeded.
         """
         limit = max_rounds if max_rounds is not None else self.max_rounds
         if self.floor.lower() == "closed":
@@ -66,19 +64,13 @@ class HandoffEnvelope:
 
         reply_val = self.reply.lower()
 
+        if reply_val == "none":
+            return False
+
         if reply_val == "baton":
             if agent_name:
                 return self.is_addressed_to(agent_name)
             return bool(self.to or self.target)
-
-        if reply_val == "none":
-            if self.floor.lower() == "open":
-                if agent_name and self.context_box:
-                    holder = (self.context_box.get("holder") or "").lower()
-                    if holder and agent_name.lower() == holder:
-                        return False
-                return True
-            return False
 
         if reply_val == "required":
             if (self.to or self.target) and agent_name:
@@ -146,13 +138,14 @@ def parse_envelope(text: str) -> Optional[HandoffEnvelope]:
             scope=raw.get("scope", "channel"),
             subject=raw.get("subject", ""),
             round=raw.get("round", 1),
-            max_rounds=raw.get("max_rounds", 2),
+            max_rounds=raw.get("max_rounds", 4),
             evidence=raw.get("evidence", []),
             supersedes=raw.get("supersedes"),
             context_box=raw.get("context_box"),
             to=raw.get("to"),
             target=raw.get("target"),
-            is_spoiler=is_spoiler
+            is_spoiler=is_spoiler,
+            sdk=raw.get("sdk", "0.5.1")
         )
     except Exception:
         return None
@@ -164,7 +157,7 @@ def format_envelope(
     scope: str = "channel",
     subject: str = "",
     round: int = 1,
-    max_rounds: int = 2,
+    max_rounds: int = 4,
     evidence: Optional[List[Dict[str, str]]] = None,
     context_box: Optional[Dict[str, Any]] = None,
     supersedes: Optional[str] = None,
@@ -172,7 +165,8 @@ def format_envelope(
     target: Optional[str] = None,
     prefix_banana: bool = True,
     v: int = 1,
-    spoiler: bool = False
+    spoiler: bool = False,
+    sdk: Optional[str] = "0.5.1"
 ) -> str:
     """Convenience helper to format a fenced handoff JSON block."""
     if floor is None:
@@ -191,7 +185,8 @@ def format_envelope(
         supersedes=supersedes,
         to=to,
         target=target,
-        is_spoiler=spoiler
+        is_spoiler=spoiler,
+        sdk=sdk
     )
     return env.render(prefix_banana=prefix_banana, spoiler=spoiler)
 
