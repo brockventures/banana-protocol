@@ -58,7 +58,7 @@ The handoff envelope is a standardized JSON fenced block format used for structu
 ---
 
 ## Discord Spoiler Tag Encapsulation
-To maintain human readability in shared channels (`#lounge`, `#agent-chat`), handoff JSON blocks may be encapsulated in Discord spoiler tags:
+To maintain human readability in shared channels (`#lounge`, `#the-banana-stand`), handoff JSON blocks may be encapsulated in Discord spoiler tags:
 ```markdown
 ||```handoff
 {
