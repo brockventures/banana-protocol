@@ -7,7 +7,7 @@ from .client import BananaClient, AsyncBananaClient, BananaError, BananaBlockedE
 from .envelope import parse_envelope, format_envelope, HandoffEnvelope, should_reply
 from .classifier import IngestionClassifier, Tier, Event
 
-__version__ = "0.3.0"
+__version__ = "0.5.0"
 __all__ = [
     "BananaClient",
     "AsyncBananaClient",

@@ -23,10 +23,10 @@ class TestFloorGovernance(unittest.TestCase):
         # Emitting agent (Amos) has yielded their turn
         self.assertFalse(parsed.should_reply(agent_name="amos"))
 
-        # Peer agent (Zero) sees open floor and can continue
-        self.assertTrue(parsed.should_reply(agent_name="zero"))
+        # Peer agent (Zero) sees reply: none -> should_reply returns False (yield is not a summons)
+        self.assertFalse(parsed.should_reply(agent_name="zero"))
 
-        # Classifier evaluates peer as CLASSIFIED (evaluating whether to claim turn)
+        # Classifier evaluates peer as CLASSIFIED (evaluating whether to claim turn via semantic scoring)
         classifier = IngestionClassifier(agent_name="zero")
         ev = Event(sender="Amos", content=rendered)
         self.assertEqual(classifier.evaluate(ev), Tier.CLASSIFIED)
@@ -108,7 +108,8 @@ class TestFloorGovernance(unittest.TestCase):
   "context_box": {"holder": "marvin"}
 }
 ```"""
-        self.assertTrue(should_reply(text, agent_name="zero"))
+        # Both zero and marvin evaluate to False for should_reply when reply is none
+        self.assertFalse(should_reply(text, agent_name="zero"))
         self.assertFalse(should_reply(text, agent_name="marvin"))
 
     def test_backward_compatibility_defaults(self):
@@ -136,6 +137,34 @@ class TestFloorGovernance(unittest.TestCase):
         env_opt = parse_envelope(legacy_opt)
         self.assertEqual(env_opt.floor, "open")
         self.assertTrue(env_opt.should_reply(agent_name="zero"))
+
+    def test_sdk_version_on_wire(self):
+        """Handoff envelopes include sdk version on the wire and deserialize correctly."""
+        env = HandoffEnvelope(v=1, kind="status", reply="none", subject="sdk-test")
+        rendered = env.render()
+        self.assertIn('"sdk": "0.5.1"', rendered)
+
+        parsed = parse_envelope(rendered)
+        self.assertIsNotNone(parsed)
+        self.assertEqual(parsed.sdk, "0.5.1")
+
+    def test_max_rounds_default_allows_multi_round_dialogue(self):
+        """Default max_rounds=4 allows round 1, 2, and 3 replies before closing on round 4."""
+        env_r1 = HandoffEnvelope(v=1, kind="question", reply="required", subject="multi-round", round=1)
+        self.assertFalse(env_r1.is_soft_terminal)
+        self.assertTrue(env_r1.should_reply())
+
+        env_r2 = HandoffEnvelope(v=1, kind="answer", reply="optional", subject="multi-round", round=2)
+        self.assertFalse(env_r2.is_soft_terminal)
+        self.assertTrue(env_r2.should_reply())
+
+        env_r3 = HandoffEnvelope(v=1, kind="answer", reply="optional", subject="multi-round", round=3)
+        self.assertFalse(env_r3.is_soft_terminal)
+        self.assertTrue(env_r3.should_reply())
+
+        env_r4 = HandoffEnvelope(v=1, kind="answer", reply="optional", subject="multi-round", round=4)
+        self.assertTrue(env_r4.is_soft_terminal)
+        self.assertFalse(env_r4.should_reply())
 
 if __name__ == "__main__":
     unittest.main()

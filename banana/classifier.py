@@ -34,18 +34,32 @@ class IngestionClassifier:
         content = event.content.strip()
         env = event.envelope or parse_envelope(content)
 
-        # 1. Handoff envelope rule: evaluate decoupled should_reply
+        # 1. Handoff envelope rule
         if env:
-            if not env.should_reply(agent_name=self.agent_name):
+            # Floor explicitly closed or max rounds reached -> SILENT
+            if env.floor.lower() == "closed" or env.round >= env.max_rounds:
                 return Tier.SILENT
 
             # Handoff targeted specifically to this agent
             if env.is_addressed_to(self.agent_name):
                 return Tier.DIRECT
 
-            # Baton handoff targeted to someone else -> silent
-            if env.reply.lower() == "baton" and (env.to or env.target):
+            # Baton or required handoff targeted to someone else -> SILENT
+            if (env.to or env.target) and not env.is_addressed_to(self.agent_name):
                 return Tier.SILENT
+
+            # When reply is 'none' and floor is 'open':
+            # Emitting speaker has yielded their turn -> SILENT
+            # Peers evaluate as CLASSIFIED (semantic classifier judges relevance)
+            if env.reply.lower() == "none":
+                if self.agent_name and env.context_box:
+                    holder = (env.context_box.get("holder") or "").lower()
+                    if holder and self.agent_name == holder:
+                        return Tier.SILENT
+                return Tier.CLASSIFIED
+
+            # Unaddressed or optional envelope on open floor -> CLASSIFIED
+            return Tier.CLASSIFIED
 
         # 2. Direct Discord @-mention or reply
         if event.is_reply_to_agent:
