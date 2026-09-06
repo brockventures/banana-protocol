@@ -142,29 +142,34 @@ class TestFloorGovernance(unittest.TestCase):
         """Handoff envelopes include sdk version on the wire and deserialize correctly."""
         env = HandoffEnvelope(v=1, kind="status", reply="none", subject="sdk-test")
         rendered = env.render()
-        self.assertIn('"sdk": "0.5.1"', rendered)
+        self.assertIn('"sdk": "0.6.0"', rendered)
 
         parsed = parse_envelope(rendered)
         self.assertIsNotNone(parsed)
-        self.assertEqual(parsed.sdk, "0.5.1")
+        self.assertEqual(parsed.sdk, "0.6.0")
 
     def test_max_rounds_default_allows_multi_round_dialogue(self):
-        """Default max_rounds=4 allows round 1, 2, and 3 replies before closing on round 4."""
+        """Default max_rounds=10 allows multi-round dialogue through round 9 before closing on round 10."""
         env_r1 = HandoffEnvelope(v=1, kind="question", reply="required", subject="multi-round", round=1)
         self.assertFalse(env_r1.is_soft_terminal)
         self.assertTrue(env_r1.should_reply())
 
-        env_r2 = HandoffEnvelope(v=1, kind="answer", reply="optional", subject="multi-round", round=2)
-        self.assertFalse(env_r2.is_soft_terminal)
-        self.assertTrue(env_r2.should_reply())
-
-        env_r3 = HandoffEnvelope(v=1, kind="answer", reply="optional", subject="multi-round", round=3)
-        self.assertFalse(env_r3.is_soft_terminal)
-        self.assertTrue(env_r3.should_reply())
-
         env_r4 = HandoffEnvelope(v=1, kind="answer", reply="optional", subject="multi-round", round=4)
-        self.assertTrue(env_r4.is_soft_terminal)
-        self.assertFalse(env_r4.should_reply())
+        self.assertFalse(env_r4.is_soft_terminal)
+        self.assertTrue(env_r4.should_reply())
+
+        env_r9 = HandoffEnvelope(v=1, kind="answer", reply="optional", subject="multi-round", round=9)
+        self.assertFalse(env_r9.is_soft_terminal)
+        self.assertTrue(env_r9.should_reply())
+
+        env_r10 = HandoffEnvelope(v=1, kind="answer", reply="optional", subject="multi-round", round=10)
+        self.assertTrue(env_r10.is_soft_terminal)
+        self.assertFalse(env_r10.should_reply())
+
+        # Explicit custom max_rounds=4 closes on round 4
+        env_custom = HandoffEnvelope(v=1, kind="answer", reply="optional", subject="multi-round", round=4, max_rounds=4)
+        self.assertTrue(env_custom.is_soft_terminal)
+        self.assertFalse(env_custom.should_reply())
 
 if __name__ == "__main__":
     unittest.main()

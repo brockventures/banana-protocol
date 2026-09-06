@@ -14,8 +14,8 @@ The handoff envelope is a standardized JSON fenced block format used for structu
   "scope": "channel" | "direct",
   "subject": "kebab-case-topic-identifier",
   "round": 1,
-  "max_rounds": 4,
-  "sdk": "0.5.1",
+  "max_rounds": 10,
+  "sdk": "0.6.0",
   "to": null | "agent-identity",
   "target": null | "agent-identity",
   "evidence": [
@@ -38,13 +38,17 @@ The handoff envelope is a standardized JSON fenced block format used for structu
 
 ## Field Definitions & Governance Rules
 - **`v`**: Integer protocol version (`1`).
-- **`sdk`**: String identifying client package version (e.g. `"0.5.1"`), enabling channel-visible drift detection.
-- **`kind`**: Communicative intent. Terminal kinds include `summary` and `consensus`.
+- **`sdk`**: String identifying client package version (e.g. `"0.6.0"`), enabling channel-visible drift detection.
+- **`kind`**: Communicative intent.
+  - **Interim Kinds (`floor: "open"`):** `"proposal"`, `"question"`, `"status"`, `"correction"`, `"finding"`, `"handoff"`.
+    - *Note on `finding`:* Represents an interim telemetry, benchmark, or experimental result; it does not indicate discussion completion.
+  - **Terminal Kinds (`floor: "closed"`):** `"consensus"`, `"resolution"`, `"summary"`.
 - **`floor`**: Thread session governance (`"open"` | `"closed"`, orthogonal to `reply`):
   - `"open"` (default): The topic remains open for peer bots to claim turns and respond, even if the emitting speaker has yielded their turn.
   - `"closed"`: Hard terminal silence. The topic discussion is concluded (or clamped by consensus/summary). All peer bots must drop the thread.
 - **`reply`**: Speaker intent and turn-reply expectation:
   - `"required"`: Speaker expects a follow-up response. If paired with `to: "agent-name"`, acts as a targeted baton pass (`Tier.DIRECT`).
+    - *Fast-ACK SLA:* The targeted agent is expected to emit an acknowledgment or status within 120s or yield the floor, preventing silence black holes.
   - `"optional"`: Informational / ambient discussion; peers route to semantic evaluation (`Tier.CLASSIFIED`).
   - `"none"`: Emitting speaker yields their own microphone and expects no direct reply. `should_reply()` returns `False` unconditionally (a yield is never a summons).
     - If `floor: "open"`: Speaker yields without terminating the thread for peers. Peer ingestion routes to semantic classifier (`Tier.CLASSIFIED`).
@@ -52,9 +56,10 @@ The handoff envelope is a standardized JSON fenced block format used for structu
 - **`to` / `target`**: Optional agent recipient for 1-to-1 handoffs (`to: "amos"`). Targeted peer evaluates as `Tier.DIRECT`; non-targeted peers drop as `Tier.SILENT`.
 - **`scope`**: Addressing scope (`"channel"` | `"direct"`, default `"channel"`).
 - **`round`**: Integer (default `1`). Incremented per conversation turn for the given `subject`.
-- **`max_rounds`**: Maximum conversation rounds permitted for this thread (default `4`).
+- **`max_rounds`**: Maximum conversation rounds permitted for this thread (default `10`).
+  - *Governance Rationale:* The previous default of 4 rounds strangled multi-agent negotiations in 3-agent rooms (Amos, Marvin, Zero) prematurely. A calibrated 10-round limit provides ample headroom for substantive iterative work (~3 rounds per agent plus consensus clamp) while maintaining a tight mechanical circuit breaker against infinite loops.
   - **Round Governor Overrule**: When `round >= max_rounds`, `should_reply()` returns `False` unconditionally regardless of `floor` status, preventing runaway token loops.
-  - **Round Clamp**: At terminal round, the emitting agent must clamp `reply: "none"`, `floor: "closed"`, and transition `kind` to `"summary"` or `"consensus"`.
+  - **Round Clamp**: At terminal round, the emitting agent must clamp `reply: "none"`, `floor: "closed"`, and transition `kind` to `"summary"`, `"resolution"`, or `"consensus"`.
 - **`context_box`**: Turn claim lease metadata mirroring the Banana mutex state.
 
 ---
