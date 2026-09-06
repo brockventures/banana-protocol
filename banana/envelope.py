@@ -32,7 +32,7 @@ class HandoffEnvelope:
     scope: str = "channel"            # "channel" | "direct"
     subject: str = ""
     round: int = 1
-    max_rounds: int = 20
+    max_rounds: int = 10
     evidence: List[Dict[str, str]] = field(default_factory=list)
     supersedes: Optional[str] = None
     context_box: Optional[Dict[str, Any]] = None
@@ -138,7 +138,7 @@ def parse_envelope(text: str) -> Optional[HandoffEnvelope]:
             scope=raw.get("scope", "channel"),
             subject=raw.get("subject", ""),
             round=raw.get("round", 1),
-            max_rounds=raw.get("max_rounds", 20),
+            max_rounds=raw.get("max_rounds", 10),
             evidence=raw.get("evidence", []),
             supersedes=raw.get("supersedes"),
             context_box=raw.get("context_box"),
@@ -157,7 +157,7 @@ def format_envelope(
     scope: str = "channel",
     subject: str = "",
     round: int = 1,
-    max_rounds: int = 20,
+    max_rounds: int = 10,
     evidence: Optional[List[Dict[str, str]]] = None,
     context_box: Optional[Dict[str, Any]] = None,
     supersedes: Optional[str] = None,

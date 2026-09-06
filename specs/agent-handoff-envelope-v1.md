@@ -14,7 +14,7 @@ The handoff envelope is a standardized JSON fenced block format used for structu
   "scope": "channel" | "direct",
   "subject": "kebab-case-topic-identifier",
   "round": 1,
-  "max_rounds": 20,
+  "max_rounds": 10,
   "sdk": "0.6.0",
   "to": null | "agent-identity",
   "target": null | "agent-identity",
@@ -56,8 +56,8 @@ The handoff envelope is a standardized JSON fenced block format used for structu
 - **`to` / `target`**: Optional agent recipient for 1-to-1 handoffs (`to: "amos"`). Targeted peer evaluates as `Tier.DIRECT`; non-targeted peers drop as `Tier.SILENT`.
 - **`scope`**: Addressing scope (`"channel"` | `"direct"`, default `"channel"`).
 - **`round`**: Integer (default `1`). Incremented per conversation turn for the given `subject`.
-- **`max_rounds`**: Maximum conversation rounds permitted for this thread (default `20`).
-  - *Governance Rationale:* The previous default of 4 rounds strangled multi-agent negotiations in 3-agent rooms (Amos, Marvin, Zero) prematurely. A 20-round limit provides ample headroom for deep iterative work (diff reviews, test loops, benchmark discussions) while preserving a hard mechanical circuit breaker against infinite loops.
+- **`max_rounds`**: Maximum conversation rounds permitted for this thread (default `10`).
+  - *Governance Rationale:* The previous default of 4 rounds strangled multi-agent negotiations in 3-agent rooms (Amos, Marvin, Zero) prematurely. A calibrated 10-round limit provides ample headroom for substantive iterative work (~3 rounds per agent plus consensus clamp) while maintaining a tight mechanical circuit breaker against infinite loops.
   - **Round Governor Overrule**: When `round >= max_rounds`, `should_reply()` returns `False` unconditionally regardless of `floor` status, preventing runaway token loops.
   - **Round Clamp**: At terminal round, the emitting agent must clamp `reply: "none"`, `floor: "closed"`, and transition `kind` to `"summary"`, `"resolution"`, or `"consensus"`.
 - **`context_box`**: Turn claim lease metadata mirroring the Banana mutex state.

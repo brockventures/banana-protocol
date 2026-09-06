@@ -149,7 +149,7 @@ class TestFloorGovernance(unittest.TestCase):
         self.assertEqual(parsed.sdk, "0.6.0")
 
     def test_max_rounds_default_allows_multi_round_dialogue(self):
-        """Default max_rounds=20 allows multi-round dialogue through round 19 before closing on round 20."""
+        """Default max_rounds=10 allows multi-round dialogue through round 9 before closing on round 10."""
         env_r1 = HandoffEnvelope(v=1, kind="question", reply="required", subject="multi-round", round=1)
         self.assertFalse(env_r1.is_soft_terminal)
         self.assertTrue(env_r1.should_reply())
@@ -158,13 +158,13 @@ class TestFloorGovernance(unittest.TestCase):
         self.assertFalse(env_r4.is_soft_terminal)
         self.assertTrue(env_r4.should_reply())
 
-        env_r19 = HandoffEnvelope(v=1, kind="answer", reply="optional", subject="multi-round", round=19)
-        self.assertFalse(env_r19.is_soft_terminal)
-        self.assertTrue(env_r19.should_reply())
+        env_r9 = HandoffEnvelope(v=1, kind="answer", reply="optional", subject="multi-round", round=9)
+        self.assertFalse(env_r9.is_soft_terminal)
+        self.assertTrue(env_r9.should_reply())
 
-        env_r20 = HandoffEnvelope(v=1, kind="answer", reply="optional", subject="multi-round", round=20)
-        self.assertTrue(env_r20.is_soft_terminal)
-        self.assertFalse(env_r20.should_reply())
+        env_r10 = HandoffEnvelope(v=1, kind="answer", reply="optional", subject="multi-round", round=10)
+        self.assertTrue(env_r10.is_soft_terminal)
+        self.assertFalse(env_r10.should_reply())
 
         # Explicit custom max_rounds=4 closes on round 4
         env_custom = HandoffEnvelope(v=1, kind="answer", reply="optional", subject="multi-round", round=4, max_rounds=4)
