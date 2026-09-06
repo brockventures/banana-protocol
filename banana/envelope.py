@@ -32,14 +32,14 @@ class HandoffEnvelope:
     scope: str = "channel"            # "channel" | "direct"
     subject: str = ""
     round: int = 1
-    max_rounds: int = 4
+    max_rounds: int = 20
     evidence: List[Dict[str, str]] = field(default_factory=list)
     supersedes: Optional[str] = None
     context_box: Optional[Dict[str, Any]] = None
     to: Optional[str] = None
     target: Optional[str] = None
     is_spoiler: bool = False
-    sdk: Optional[str] = "0.5.1"
+    sdk: Optional[str] = "0.6.0"
 
     @property
     def is_soft_terminal(self) -> bool:
@@ -138,14 +138,14 @@ def parse_envelope(text: str) -> Optional[HandoffEnvelope]:
             scope=raw.get("scope", "channel"),
             subject=raw.get("subject", ""),
             round=raw.get("round", 1),
-            max_rounds=raw.get("max_rounds", 4),
+            max_rounds=raw.get("max_rounds", 20),
             evidence=raw.get("evidence", []),
             supersedes=raw.get("supersedes"),
             context_box=raw.get("context_box"),
             to=raw.get("to"),
             target=raw.get("target"),
             is_spoiler=is_spoiler,
-            sdk=raw.get("sdk", "0.5.1")
+            sdk=raw.get("sdk", "0.6.0")
         )
     except Exception:
         return None
@@ -157,7 +157,7 @@ def format_envelope(
     scope: str = "channel",
     subject: str = "",
     round: int = 1,
-    max_rounds: int = 4,
+    max_rounds: int = 20,
     evidence: Optional[List[Dict[str, str]]] = None,
     context_box: Optional[Dict[str, Any]] = None,
     supersedes: Optional[str] = None,
@@ -166,7 +166,7 @@ def format_envelope(
     prefix_banana: bool = True,
     v: int = 1,
     spoiler: bool = False,
-    sdk: Optional[str] = "0.5.1"
+    sdk: Optional[str] = "0.6.0"
 ) -> str:
     """Convenience helper to format a fenced handoff JSON block."""
     if floor is None:

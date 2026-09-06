@@ -102,13 +102,18 @@ class TestRoundTracking(unittest.TestCase):
         self.assertFalse(env_r1.is_soft_terminal)
         self.assertTrue(env_r1.should_reply())
 
-        # Round 4 is soft-terminal with default max_rounds=4 -> should_reply() returns False
-        env_r4 = HandoffEnvelope(v=1, kind="answer", reply="optional", subject="test-topic", round=4)
-        self.assertTrue(env_r4.is_soft_terminal)
-        self.assertFalse(env_r4.should_reply())
+        # Round 20 is soft-terminal with default max_rounds=20 -> should_reply() returns False
+        env_r20 = HandoffEnvelope(v=1, kind="answer", reply="optional", subject="test-topic", round=20)
+        self.assertTrue(env_r20.is_soft_terminal)
+        self.assertFalse(env_r20.should_reply())
+
+        # Explicit custom max_rounds=4 is also respected
+        env_custom = HandoffEnvelope(v=1, kind="answer", reply="optional", subject="test-topic", round=4, max_rounds=4)
+        self.assertTrue(env_custom.is_soft_terminal)
+        self.assertFalse(env_custom.should_reply())
 
     def test_clamp_terminal(self):
-        env = HandoffEnvelope(v=1, kind="answer", reply="required", subject="test-topic", round=4)
+        env = HandoffEnvelope(v=1, kind="answer", reply="required", subject="test-topic", round=20)
         env.clamp_terminal(kind="consensus")
         self.assertEqual(env.reply, "none")
         self.assertEqual(env.kind, "consensus")
@@ -118,7 +123,7 @@ class TestRoundTracking(unittest.TestCase):
         from banana.classifier import IngestionClassifier, Event, Tier
         classifier = IngestionClassifier(agent_name="zero")
         
-        # Round 4 envelope in inbound message -> classified as SILENT by default
+        # Round 20 envelope in inbound message -> classified as SILENT by default
         event = Event(
             sender="Amos",
             content="""🍌 ```handoff
@@ -127,7 +132,7 @@ class TestRoundTracking(unittest.TestCase):
   "kind": "answer",
   "reply": "optional",
   "subject": "governor-test",
-  "round": 4
+  "round": 20
 }
 ```
 Here is the conclusion."""
