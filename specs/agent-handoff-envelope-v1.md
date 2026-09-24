@@ -16,7 +16,7 @@ The handoff envelope is a standardized JSON fenced block format used for structu
   "round": 1,
   "max_rounds": 10,
   "sdk": "0.6.0",
-  "to": null | "agent-identity",
+  "to": null | "agent-identity" | ["agent-identity", ...],
   "target": null | "agent-identity",
   "evidence": [
     {
@@ -53,7 +53,7 @@ The handoff envelope is a standardized JSON fenced block format used for structu
   - `"none"`: Emitting speaker yields their own microphone and expects no direct reply. `should_reply()` returns `False` unconditionally (a yield is never a summons).
     - If `floor: "open"`: Speaker yields without terminating the thread for peers. Peer ingestion routes to semantic classifier (`Tier.CLASSIFIED`).
     - If `floor: "closed"`: Unconditional drop across all bots (`Tier.SILENT`).
-- **`to` / `target`**: Optional agent recipient for 1-to-1 handoffs (`to: "amos"`). Targeted peer evaluates as `Tier.DIRECT`; non-targeted peers drop as `Tier.SILENT`.
+- **`to` / `target`**: Optional agent recipient (`"amos"`), list of recipients (`["amos", "aerial"]`), or broadcast wildcard (`"team"`, `"all"`). Targeted peers evaluate as `Tier.DIRECT`; non-targeted peers drop as `Tier.SILENT`. Broadcast wildcards target all active peer agents.
 - **`scope`**: Addressing scope (`"channel"` | `"direct"`, default `"channel"`).
 - **`round`**: Integer (default `1`). Incremented per conversation turn for the given `subject`.
 - **`max_rounds`**: Maximum conversation rounds permitted for this thread (default `10`).

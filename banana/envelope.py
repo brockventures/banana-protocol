@@ -6,7 +6,7 @@ Standardized JSON envelope for cross-agent coordination in Crab Cavern.
 import json
 import re
 from dataclasses import dataclass, field, asdict
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 
 @dataclass
 class EvidenceItem:
@@ -36,8 +36,8 @@ class HandoffEnvelope:
     evidence: List[Dict[str, str]] = field(default_factory=list)
     supersedes: Optional[str] = None
     context_box: Optional[Dict[str, Any]] = None
-    to: Optional[str] = None
-    target: Optional[str] = None
+    to: Optional[Union[str, List[str]]] = None
+    target: Optional[Union[str, List[str]]] = None
     is_spoiler: bool = False
     sdk: Optional[str] = "0.6.0"
 
@@ -90,12 +90,25 @@ class HandoffEnvelope:
         """Check whether this envelope targets a specific agent."""
         if not agent_name:
             return False
-        target = (self.to or self.target or "").lower()
-        if agent_name.lower() in target:
+        name = agent_name.lower().strip()
+
+        targets: List[str] = []
+        for val in (self.to, self.target):
+            if isinstance(val, list):
+                targets.extend(str(item).lower().strip() for item in val)
+            elif isinstance(val, str):
+                targets.append(val.lower().strip())
+
+        if any(t in ("team", "all", "*") for t in targets):
             return True
-        if self.context_box and (self.context_box.get("waiting_on") or "").lower() == agent_name.lower():
+
+        for t in targets:
+            if name == t or name in t:
+                return True
+
+        if self.context_box and (self.context_box.get("waiting_on") or "").lower() == name:
             return True
-        if agent_name.lower() in self.subject.lower() and self.should_reply(agent_name):
+        if name in self.subject.lower() and self.should_reply(agent_name):
             return True
         return False
 
@@ -161,8 +174,8 @@ def format_envelope(
     evidence: Optional[List[Dict[str, str]]] = None,
     context_box: Optional[Dict[str, Any]] = None,
     supersedes: Optional[str] = None,
-    to: Optional[str] = None,
-    target: Optional[str] = None,
+    to: Optional[Union[str, List[str]]] = None,
+    target: Optional[Union[str, List[str]]] = None,
     prefix_banana: bool = True,
     v: int = 1,
     spoiler: bool = False,
