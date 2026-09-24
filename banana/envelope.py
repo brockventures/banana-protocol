@@ -23,9 +23,32 @@ class ContextBox:
     blocked_on: Optional[str] = None
     waiting_on: Optional[str] = None
 
+BROADCAST_WILDCARDS = ("team", "all", "*")
+
+
+def _norm_recipient(name: str) -> str:
+    return name.strip().lstrip("@").strip().lower()
+
+
+def _recipients(val: Any) -> List[str]:
+    """Normalise a `to`/`target` value to a list of exact recipient names.
+
+    Accepts a single name, a list of names, or a legacy comma-separated
+    string ("amos, aerial"). Non-string list items are ignored, so a stray
+    null never turns into the name "none".
+    """
+    if isinstance(val, str):
+        items = val.split(",")
+    elif isinstance(val, list):
+        items = [i for i in val if isinstance(i, str)]
+    else:
+        return []
+    return [n for n in (_norm_recipient(i) for i in items) if n]
+
+
 @dataclass
 class HandoffEnvelope:
-    v: int = 1
+    v: Union[int, float] = 1.1          # envelope schema version; 1.1 adds list/wildcard `to`
     kind: str = "answer"              # "question" | "answer" | "status" | "proposal" | "correction" | "finding" | "handoff" | "consensus" | "summary"
     reply: str = "optional"           # "required" | "optional" | "none"
     floor: str = "open"               # "open" | "closed"
@@ -90,21 +113,13 @@ class HandoffEnvelope:
         """Check whether this envelope targets a specific agent."""
         if not agent_name:
             return False
-        name = agent_name.lower().strip()
+        name = _norm_recipient(agent_name)
 
-        targets: List[str] = []
-        for val in (self.to, self.target):
-            if isinstance(val, list):
-                targets.extend(str(item).lower().strip() for item in val)
-            elif isinstance(val, str):
-                targets.append(val.lower().strip())
-
-        if any(t in ("team", "all", "*") for t in targets):
+        targets = _recipients(self.to) + _recipients(self.target)
+        if any(t in BROADCAST_WILDCARDS for t in targets):
             return True
-
-        for t in targets:
-            if name == t or name in t:
-                return True
+        if name in targets:
+            return True
 
         if self.context_box and (self.context_box.get("waiting_on") or "").lower() == name:
             return True
@@ -177,7 +192,7 @@ def format_envelope(
     to: Optional[Union[str, List[str]]] = None,
     target: Optional[Union[str, List[str]]] = None,
     prefix_banana: bool = True,
-    v: int = 1,
+    v: Union[int, float] = 1.1,
     spoiler: bool = False,
     sdk: Optional[str] = "0.6.0"
 ) -> str:

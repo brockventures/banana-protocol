@@ -1,13 +1,15 @@
-# Agent Handoff Envelope Specification (v1)
+# Agent Handoff Envelope Specification (v1.1)
 
 ## Purpose
 The handoff envelope is a standardized JSON fenced block format used for structured coordination, peer review, task delegation, and conversation governance between AI agents (Amos, Marvin, Zero) and human developers in Crab Cavern.
 
-## Envelope Schema (v1)
+## Envelope Schema (v1.1)
+
+v1.1 (2026-09-23) widens `to`/`target` to accept a list of recipients or a broadcast wildcard, and makes recipient matching exact. A v1 envelope (single-string `to`) is still valid v1.1.
 
 ```json
 {
-  "v": 1,
+  "v": 1.1,
   "kind": "question" | "answer" | "status" | "proposal" | "correction" | "finding" | "handoff" | "consensus" | "summary",
   "reply": "required" | "optional" | "none",
   "floor": "open" | "closed",
@@ -17,7 +19,7 @@ The handoff envelope is a standardized JSON fenced block format used for structu
   "max_rounds": 10,
   "sdk": "0.6.0",
   "to": null | "agent-identity" | ["agent-identity", ...],
-  "target": null | "agent-identity",
+  "target": null | "agent-identity" | ["agent-identity", ...],
   "evidence": [
     {
       "src": "filepath-or-url-or-identifier",
@@ -53,7 +55,7 @@ The handoff envelope is a standardized JSON fenced block format used for structu
   - `"none"`: Emitting speaker yields their own microphone and expects no direct reply. `should_reply()` returns `False` unconditionally (a yield is never a summons).
     - If `floor: "open"`: Speaker yields without terminating the thread for peers. Peer ingestion routes to semantic classifier (`Tier.CLASSIFIED`).
     - If `floor: "closed"`: Unconditional drop across all bots (`Tier.SILENT`).
-- **`to` / `target`**: Optional agent recipient (`"amos"`), list of recipients (`["amos", "aerial"]`), or broadcast wildcard (`"team"`, `"all"`). Targeted peers evaluate as `Tier.DIRECT`; non-targeted peers drop as `Tier.SILENT`. Broadcast wildcards target all active peer agents.
+- **`to` / `target`**: Optional agent recipient (`"amos"`), list of recipients (`["amos", "aerial"]`), or broadcast wildcard (`"team"`, `"all"`, `"*"`). Targeted peers evaluate as `Tier.DIRECT`; non-targeted peers drop as `Tier.SILENT`. Broadcast wildcards target all active peer agents. Matching is exact and case-insensitive on the whole name (a leading `@` is ignored): `"amos-dashboard"` does not address `amos`. A comma-separated string (`"amos, aerial"`) is read as a list. Non-string list items are ignored.
 - **`scope`**: Addressing scope (`"channel"` | `"direct"`, default `"channel"`).
 - **`round`**: Integer (default `1`). Incremented per conversation turn for the given `subject`.
 - **`max_rounds`**: Maximum conversation rounds permitted for this thread (default `10`).

@@ -40,3 +40,30 @@ def test_envelope_parse_list_to():
     assert parsed.is_addressed_to("aerial") is True
     assert parsed.is_addressed_to("amos") is True
     assert parsed.is_addressed_to("zero") is False
+
+
+def test_recipient_match_is_exact_not_substring():
+    env = HandoffEnvelope(to=["amos-dashboard"], reply="required")
+    assert env.is_addressed_to("amos-dashboard") is True
+    assert env.is_addressed_to("amos") is False
+    assert HandoffEnvelope(to="zeroth", reply="required").is_addressed_to("zero") is False
+
+
+def test_recipient_normalisation():
+    env = HandoffEnvelope(to=["@Amos", None, 7], target="aerial", reply="required")
+    assert env.is_addressed_to("amos") is True
+    assert env.is_addressed_to("aerial") is True
+    assert env.is_addressed_to("no") is False
+    assert env.is_addressed_to("none") is False
+
+
+def test_legacy_comma_string_and_star_wildcard():
+    env = HandoffEnvelope(to="amos, aerial", reply="required")
+    assert env.is_addressed_to("aerial") is True
+    assert env.is_addressed_to("zero") is False
+    assert HandoffEnvelope(target=["*"], reply="required").is_addressed_to("zero") is True
+
+
+def test_envelope_version_is_1_1():
+    assert HandoffEnvelope().v == 1.1
+    assert '"v": 1.1' in format_envelope(kind="status", reply="none", subject="v-check")
