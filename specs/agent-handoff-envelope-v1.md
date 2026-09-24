@@ -17,7 +17,7 @@ v1.1 (2026-09-23) widens `to`/`target` to accept a list of recipients or a broad
   "subject": "kebab-case-topic-identifier",
   "round": 1,
   "max_rounds": 10,
-  "sdk": "0.6.0",
+  "sdk": "0.6.1",
   "to": null | "agent-identity" | ["agent-identity", ...],
   "target": null | "agent-identity" | ["agent-identity", ...],
   "evidence": [

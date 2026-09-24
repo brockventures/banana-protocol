@@ -142,11 +142,11 @@ class TestFloorGovernance(unittest.TestCase):
         """Handoff envelopes include sdk version on the wire and deserialize correctly."""
         env = HandoffEnvelope(v=1, kind="status", reply="none", subject="sdk-test")
         rendered = env.render()
-        self.assertIn('"sdk": "0.6.0"', rendered)
+        self.assertIn('"sdk": "0.6.1"', rendered)
 
         parsed = parse_envelope(rendered)
         self.assertIsNotNone(parsed)
-        self.assertEqual(parsed.sdk, "0.6.0")
+        self.assertEqual(parsed.sdk, "0.6.1")
 
     def test_max_rounds_default_allows_multi_round_dialogue(self):
         """Default max_rounds=10 allows multi-round dialogue through round 9 before closing on round 10."""

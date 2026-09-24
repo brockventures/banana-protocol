@@ -62,7 +62,7 @@ class HandoffEnvelope:
     to: Optional[Union[str, List[str]]] = None
     target: Optional[Union[str, List[str]]] = None
     is_spoiler: bool = False
-    sdk: Optional[str] = "0.6.0"
+    sdk: Optional[str] = "0.6.1"
 
     @property
     def is_soft_terminal(self) -> bool:
@@ -173,7 +173,7 @@ def parse_envelope(text: str) -> Optional[HandoffEnvelope]:
             to=raw.get("to"),
             target=raw.get("target"),
             is_spoiler=is_spoiler,
-            sdk=raw.get("sdk", "0.6.0")
+            sdk=raw.get("sdk", "0.6.1")
         )
     except Exception:
         return None
@@ -194,7 +194,7 @@ def format_envelope(
     prefix_banana: bool = True,
     v: Union[int, float] = 1.1,
     spoiler: bool = False,
-    sdk: Optional[str] = "0.6.0"
+    sdk: Optional[str] = "0.6.1"
 ) -> str:
     """Convenience helper to format a fenced handoff JSON block."""
     if floor is None:
