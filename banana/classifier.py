@@ -74,9 +74,11 @@ class IngestionClassifier:
         # 3. Name invocation at start of prompt (e.g. "Zero:", "Hey zero,")
         # Bots must never wake each other via bare un-tagged text names.
         # Possessives ("Zero's", "Aerial's") are referential, not direct vocative invocations.
+        # Vocatives require an explicit greeting, @ prefix, or immediate punctuation (, : ! ?).
         if not event.is_bot:
-            name_pattern = rf"^\s*(?:hey\s+|hi\s+|hello\s+)?@?{re.escape(self.agent_name)}(?!['’]s\b)(?:\b|[!?:,])"
-            if re.search(name_pattern, content, re.IGNORECASE | re.MULTILINE):
+            n = re.escape(self.agent_name)
+            name_pattern = rf"^\s*(?:(?:(?:hey|hi|hello)\s+@?|@){n}(?![\w'’-])|{n}\s*[,:!?])"
+            if re.search(name_pattern, content, re.IGNORECASE):
                 return Tier.DIRECT
 
         # 4. Bot noise filter: Ignore peer bot chatter under 4 words without explicit targeting
