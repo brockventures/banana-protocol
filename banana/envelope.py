@@ -6,7 +6,7 @@ Standardized JSON envelope for cross-agent coordination in Crab Cavern.
 import json
 import re
 from dataclasses import dataclass, field, asdict
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 
 @dataclass
 class EvidenceItem:
@@ -23,9 +23,32 @@ class ContextBox:
     blocked_on: Optional[str] = None
     waiting_on: Optional[str] = None
 
+BROADCAST_WILDCARDS = ("team", "all", "*")
+
+
+def _norm_recipient(name: str) -> str:
+    return name.strip().lstrip("@").strip().lower()
+
+
+def _recipients(val: Any) -> List[str]:
+    """Normalise a `to`/`target` value to a list of exact recipient names.
+
+    Accepts a single name, a list of names, or a legacy comma-separated
+    string ("amos, aerial"). Non-string list items are ignored, so a stray
+    null never turns into the name "none".
+    """
+    if isinstance(val, str):
+        items = val.split(",")
+    elif isinstance(val, list):
+        items = [i for i in val if isinstance(i, str)]
+    else:
+        return []
+    return [n for n in (_norm_recipient(i) for i in items) if n]
+
+
 @dataclass
 class HandoffEnvelope:
-    v: int = 1
+    v: Union[int, float] = 1.1          # envelope schema version; 1.1 adds list/wildcard `to`
     kind: str = "answer"              # "question" | "answer" | "status" | "proposal" | "correction" | "finding" | "handoff" | "consensus" | "summary"
     reply: str = "optional"           # "required" | "optional" | "none"
     floor: str = "open"               # "open" | "closed"
@@ -36,8 +59,8 @@ class HandoffEnvelope:
     evidence: List[Dict[str, str]] = field(default_factory=list)
     supersedes: Optional[str] = None
     context_box: Optional[Dict[str, Any]] = None
-    to: Optional[str] = None
-    target: Optional[str] = None
+    to: Optional[Union[str, List[str]]] = None
+    target: Optional[Union[str, List[str]]] = None
     is_spoiler: bool = False
     sdk: Optional[str] = "0.6.0"
 
@@ -90,12 +113,17 @@ class HandoffEnvelope:
         """Check whether this envelope targets a specific agent."""
         if not agent_name:
             return False
-        target = (self.to or self.target or "").lower()
-        if agent_name.lower() in target:
+        name = _norm_recipient(agent_name)
+
+        targets = _recipients(self.to) + _recipients(self.target)
+        if any(t in BROADCAST_WILDCARDS for t in targets):
             return True
-        if self.context_box and (self.context_box.get("waiting_on") or "").lower() == agent_name.lower():
+        if name in targets:
             return True
-        if agent_name.lower() in self.subject.lower() and self.should_reply(agent_name):
+
+        if self.context_box and (self.context_box.get("waiting_on") or "").lower() == name:
+            return True
+        if name in self.subject.lower() and self.should_reply(agent_name):
             return True
         return False
 
@@ -161,10 +189,10 @@ def format_envelope(
     evidence: Optional[List[Dict[str, str]]] = None,
     context_box: Optional[Dict[str, Any]] = None,
     supersedes: Optional[str] = None,
-    to: Optional[str] = None,
-    target: Optional[str] = None,
+    to: Optional[Union[str, List[str]]] = None,
+    target: Optional[Union[str, List[str]]] = None,
     prefix_banana: bool = True,
-    v: int = 1,
+    v: Union[int, float] = 1.1,
     spoiler: bool = False,
     sdk: Optional[str] = "0.6.0"
 ) -> str:
