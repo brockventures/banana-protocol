@@ -92,6 +92,19 @@ class TestClassifier(unittest.TestCase):
         ev = Event(sender="Ryan", content="I wonder what architecture we should choose for the backend storage layer.")
         self.assertEqual(self.classifier.evaluate(ev), Tier.CLASSIFIED)
 
+    def test_mid_sentence_name_not_direct(self):
+        ev = Event(sender="Alex", content="I think Zero and Aerial should coordinate on this.")
+        self.assertEqual(self.classifier.evaluate(ev), Tier.CLASSIFIED)
+
+    def test_bot_plain_text_name_not_direct(self):
+        # Banana Watcher or peer bot warning mentioning agent by plain text without snowflake tag
+        ev = Event(
+            sender="Banana Watcher",
+            is_bot=True,
+            content="🍌 **Handoff Warning**: Open handoff from Zero on agora-status waiting for response."
+        )
+        self.assertNotEqual(self.classifier.evaluate(ev), Tier.DIRECT)
+
 if __name__ == "__main__":
     unittest.main()
 

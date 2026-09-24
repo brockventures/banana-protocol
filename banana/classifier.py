@@ -72,9 +72,11 @@ class IngestionClassifier:
             return Tier.DIRECT
 
         # 3. Name invocation at start of prompt (e.g. "Zero:", "Hey zero,")
-        name_pattern = rf"(?:^|[\s,;])(?:hey\s+)?@?{re.escape(self.agent_name)}(?:\b|[!?:,])"
-        if re.search(name_pattern, content, re.IGNORECASE):
-            return Tier.DIRECT
+        # Peer bots must never wake each other via bare un-tagged text names
+        if not event.is_bot:
+            name_pattern = rf"^\s*(?:hey\s+)?@?{re.escape(self.agent_name)}(?:\b|[!?:,])"
+            if re.search(name_pattern, content, re.IGNORECASE | re.MULTILINE):
+                return Tier.DIRECT
 
         # 4. Bot noise filter: Ignore peer bot chatter under 4 words without explicit targeting
         if event.is_bot:
