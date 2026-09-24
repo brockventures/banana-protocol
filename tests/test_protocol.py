@@ -61,6 +61,10 @@ class TestClassifier(unittest.TestCase):
         ev = Event(sender="Ryan", content="Hey Zero: can you build the repo?")
         self.assertEqual(self.classifier.evaluate(ev), Tier.DIRECT)
 
+    def test_third_person_mention_is_not_direct(self):
+        ev = Event(sender="Ryan", content="deliver it to this channel for Zero's review")
+        self.assertEqual(self.classifier.evaluate(ev), Tier.CLASSIFIED)
+
     def test_silent_reply_none(self):
         ev = Event(sender="Amos", content="""```handoff
 {

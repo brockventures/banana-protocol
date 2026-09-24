@@ -72,7 +72,7 @@ class IngestionClassifier:
             return Tier.DIRECT
 
         # 3. Name invocation at start of prompt (e.g. "Zero:", "Hey zero,")
-        name_pattern = rf"(?:^|[\s,;])(?:hey\s+)?@?{re.escape(self.agent_name)}(?:\b|[!?:,])"
+        name_pattern = rf"^\s*(?:hey\s+)?@?{re.escape(self.agent_name)}(?:\b|[!?:,])"
         if re.search(name_pattern, content, re.IGNORECASE):
             return Tier.DIRECT
 
