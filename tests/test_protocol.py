@@ -60,6 +60,37 @@ class TestClassifier(unittest.TestCase):
     def test_direct_name(self):
         ev = Event(sender="Ryan", content="Hey Zero: can you build the repo?")
         self.assertEqual(self.classifier.evaluate(ev), Tier.DIRECT)
+        self.assertEqual(self.classifier.evaluate(Event(sender="Ryan", content="Zero, build it")), Tier.DIRECT)
+        self.assertEqual(self.classifier.evaluate(Event(sender="Ryan", content="Zero: status?")), Tier.DIRECT)
+        self.assertEqual(self.classifier.evaluate(Event(sender="Ryan", content="@Zero help")), Tier.DIRECT)
+        self.assertEqual(self.classifier.evaluate(Event(sender="Ryan", content="hey zero can you")), Tier.DIRECT)
+
+    def test_third_person_mention_is_not_direct(self):
+        ev = Event(sender="Ryan", content="deliver it to this channel for Zero's review")
+        self.assertEqual(self.classifier.evaluate(ev), Tier.CLASSIFIED)
+
+    def test_possessive_at_start_is_not_direct(self):
+        ev = Event(sender="Ryan", content="Zero's branch is failing CI")
+        self.assertEqual(self.classifier.evaluate(ev), Tier.CLASSIFIED)
+
+    def test_third_person_sentence_start_is_not_direct(self):
+        cases = [
+            "Zero merged the PR",
+            "Zero is broken again",
+            "ok\nZero pushed a fix",
+            "Zero-agent is public",
+        ]
+        for msg in cases:
+            ev = Event(sender="Ryan", content=msg)
+            self.assertEqual(self.classifier.evaluate(ev), Tier.CLASSIFIED, f"Failed for content: {msg!r}")
+
+    def test_bot_plain_text_name_not_direct(self):
+        ev = Event(
+            sender="Banana Watcher",
+            is_bot=True,
+            content="🍌 **Handoff Warning**: Open handoff from Zero on agora-status waiting for response."
+        )
+        self.assertNotEqual(self.classifier.evaluate(ev), Tier.DIRECT)
 
     def test_silent_reply_none(self):
         ev = Event(sender="Amos", content="""```handoff
