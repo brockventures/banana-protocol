@@ -65,6 +65,18 @@ class TestClassifier(unittest.TestCase):
         ev = Event(sender="Ryan", content="deliver it to this channel for Zero's review")
         self.assertEqual(self.classifier.evaluate(ev), Tier.CLASSIFIED)
 
+    def test_possessive_at_start_is_not_direct(self):
+        ev = Event(sender="Ryan", content="Zero's branch is failing CI")
+        self.assertEqual(self.classifier.evaluate(ev), Tier.CLASSIFIED)
+
+    def test_bot_plain_text_name_not_direct(self):
+        ev = Event(
+            sender="Banana Watcher",
+            is_bot=True,
+            content="🍌 **Handoff Warning**: Open handoff from Zero on agora-status waiting for response."
+        )
+        self.assertNotEqual(self.classifier.evaluate(ev), Tier.DIRECT)
+
     def test_silent_reply_none(self):
         ev = Event(sender="Amos", content="""```handoff
 {
