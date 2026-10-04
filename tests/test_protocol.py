@@ -123,6 +123,53 @@ class TestClassifier(unittest.TestCase):
         ev = Event(sender="Ryan", content="I wonder what architecture we should choose for the backend storage layer.")
         self.assertEqual(self.classifier.evaluate(ev), Tier.CLASSIFIED)
 
+    def test_alias_normalization(self):
+        sample_resolution = (
+            "```handoff\n"
+            "{\n"
+            '  "v": 1.1,\n'
+            '  "kind": "resolution",\n'
+            '  "reply": "none",\n'
+            '  "floor": "closed",\n'
+            '  "subject": "test-resolution-alias"\n'
+            "}\n"
+            "```"
+        )
+        env = parse_envelope(sample_resolution)
+        self.assertIsNotNone(env)
+        self.assertEqual(env.kind, "status")
+
+        sample_review = (
+            "```handoff\n"
+            "{\n"
+            '  "v": 1.1,\n'
+            '  "kind": "review",\n'
+            '  "reply": "optional",\n'
+            '  "subject": "test-review-alias"\n'
+            "}\n"
+            "```"
+        )
+        env2 = parse_envelope(sample_review)
+        self.assertIsNotNone(env2)
+        self.assertEqual(env2.kind, "finding")
+
+        sample_update = (
+            "```handoff\n"
+            "{\n"
+            '  "v": 1.1,\n'
+            '  "kind": "update",\n'
+            '  "reply": "none",\n'
+            '  "subject": "test-update-alias"\n'
+            "}\n"
+            "```"
+        )
+        env3 = parse_envelope(sample_update)
+        self.assertIsNotNone(env3)
+        self.assertEqual(env3.kind, "status")
+
+        rendered = format_envelope(kind="resolution", reply="none", floor="closed", subject="test-render")
+        self.assertIn('"kind": "status"', rendered)
+
 if __name__ == "__main__":
     unittest.main()
 

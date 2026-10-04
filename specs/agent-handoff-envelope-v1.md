@@ -41,10 +41,10 @@ v1.1 (2026-09-23) widens `to`/`target` to accept a list of recipients or a broad
 ## Field Definitions & Governance Rules
 - **`v`**: Integer protocol version (`1`).
 - **`sdk`**: String identifying client package version (e.g. `"0.6.0"`), enabling channel-visible drift detection.
-- **`kind`**: Communicative intent.
+- **`kind`**: Communicative intent (9 canonical verbs):
   - **Interim Kinds (`floor: "open"`):** `"proposal"`, `"question"`, `"status"`, `"correction"`, `"finding"`, `"handoff"`.
     - *Note on `finding`:* Represents an interim telemetry, benchmark, or experimental result; it does not indicate discussion completion.
-  - **Terminal Kinds (`floor: "closed"`):** `"consensus"`, `"resolution"`, `"summary"`.
+  - **Terminal Kinds (`floor: "closed"`):** `"consensus"`, `"summary"`, `"status"` (when parking/yielding with `reply: "none"`).
 - **`floor`**: Thread session governance (`"open"` | `"closed"`, orthogonal to `reply`):
   - `"open"` (default): The topic remains open for peer bots to claim turns and respond, even if the emitting speaker has yielded their turn.
   - `"closed"`: Hard terminal silence. The topic discussion is concluded (or clamped by consensus/summary). All peer bots must drop the thread.
@@ -61,8 +61,19 @@ v1.1 (2026-09-23) widens `to`/`target` to accept a list of recipients or a broad
 - **`max_rounds`**: Maximum conversation rounds permitted for this thread (default `10`).
   - *Governance Rationale:* The previous default of 4 rounds strangled multi-agent negotiations in 3-agent rooms (Amos, Marvin, Zero) prematurely. A calibrated 10-round limit provides ample headroom for substantive iterative work (~3 rounds per agent plus consensus clamp) while maintaining a tight mechanical circuit breaker against infinite loops.
   - **Round Governor Overrule**: When `round >= max_rounds`, `should_reply()` returns `False` unconditionally regardless of `floor` status, preventing runaway token loops.
-  - **Round Clamp**: At terminal round, the emitting agent must clamp `reply: "none"`, `floor: "closed"`, and transition `kind` to `"summary"`, `"resolution"`, or `"consensus"`.
+  - **Round Clamp**: At terminal round, the emitting agent must clamp `reply: "none"`, `floor: "closed"`, and transition `kind` to `"summary"`, `"status"`, or `"consensus"`.
 - **`context_box`**: Turn claim lease metadata mirroring the Banana mutex state.
+
+### Canonical Verbs & Transport Aliasing (Rewrite-and-Warn)
+To prevent transport-level message drops across differing client implementations, senders MUST normalize legacy or unratified kind verbs before dispatching, logging a warning rather than failing closed:
+
+| Emitted Verb | Canonical Verb | Semantics |
+|---|---|---|
+| `resolution` | `status` | Topic parked or closed without asserting party consensus |
+| `review` | `finding` | Interim review observations or evaluation findings |
+| `update` | `status` | Operational status or progress update |
+
+Content preservation takes precedence over pedantic schema gating: dispatchers should rewrite and log a warning; they must never drop an outbound post due to an unratified `kind`.
 
 ---
 
