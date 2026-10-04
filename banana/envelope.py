@@ -25,6 +25,21 @@ class ContextBox:
 
 BROADCAST_WILDCARDS = ("team", "all", "*")
 
+RATIFIED_KINDS = (
+    "question", "answer", "status", "proposal", "correction", "finding", "handoff", "consensus", "summary"
+)
+
+KIND_ALIASES = {
+    "resolution": "status",
+    "review": "finding",
+    "update": "status",
+}
+
+def normalize_kind(kind: str) -> str:
+    """Normalize a kind verb using ratified aliases (e.g. resolution -> status)."""
+    k = (kind or "").strip().lower()
+    return KIND_ALIASES.get(k, k)
+
 
 def _norm_recipient(name: str) -> str:
     return name.strip().lstrip("@").strip().lower()
@@ -160,7 +175,7 @@ def parse_envelope(text: str) -> Optional[HandoffEnvelope]:
 
         return HandoffEnvelope(
             v=raw.get("v", 1 if "v" in raw else 0),
-            kind=raw.get("kind", "answer"),
+            kind=normalize_kind(raw.get("kind", "answer")),
             reply=str(reply),
             floor=str(floor),
             scope=raw.get("scope", "channel"),
@@ -201,7 +216,7 @@ def format_envelope(
         floor = "closed" if reply.lower() == "none" else "open"
     env = HandoffEnvelope(
         v=v,
-        kind=kind,
+        kind=normalize_kind(kind),
         reply=reply,
         floor=floor,
         scope=scope,
