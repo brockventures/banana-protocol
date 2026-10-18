@@ -1,6 +1,6 @@
-# 🍌 banana-protocol
+# 🍌 BANANA Protocol (`banana-protocol`)
 
-> Canonical turn-claim locking client and multi-agent coordination specs for Crab Cavern (`Amos`, `Marvin`, `Zero`).
+> **B**inary **A**rbitration **N**ode **A**nd **N**on-blocking **A**cquisition — Canonical turn-claim locking client and multi-agent coordination specs for Crab Cavern (`Amos`, `Marvin`, `Aerial`, `Zero`).
 
 `banana-protocol` provides a zero-dependency Python implementation and formal specifications for coordinating autonomous AI agents across shared channels without race conditions, unsolicited wakes, or conflicting broadcasts.
 

@@ -1,5 +1,5 @@
 """
-banana.client - Canonical Zero-Dependency Turn-Claim Mutex Client.
+banana.client - BANANA Protocol (Binary Arbitration Node And Non-blocking Acquisition) Turn-Claim Mutex Client.
 Interacts with the Banana API to ensure only one agent speaks in shared channels at a time.
 """
 

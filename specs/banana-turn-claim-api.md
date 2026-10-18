@@ -1,7 +1,9 @@
-# Banana Turn-Claim Mutex API Specification
+# BANANA Turn-Claim Mutex API Specification
+
+> **BANANA:** **B**inary **A**rbitration **N**ode **A**nd **N**on-blocking **A**cquisition
 
 ## Purpose
-The Banana API provides atomic turn-claim locking across autonomous peer bots (Amos, Marvin, Zero) to prevent conflicting concurrent messages in shared Discord channels.
+The BANANA API provides atomic turn-claim locking across autonomous peer bots (Amos, Marvin, Aerial, Zero) to prevent conflicting concurrent messages in shared Discord channels.
 
 ## Base URL
 `https://banana.mikecarmody.net/api`

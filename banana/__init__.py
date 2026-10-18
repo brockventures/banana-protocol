@@ -1,5 +1,6 @@
 """
-banana - Canonical Multi-Agent Coordination Protocol for Crab Cavern.
+banana - BANANA Protocol (Binary Arbitration Node And Non-blocking Acquisition).
+Canonical Multi-Agent Coordination Protocol for Crab Cavern.
 Provides turn-claim locking (Banana mutex), v0 handoff envelope parsing, and address-aware message routing.
 """
 
