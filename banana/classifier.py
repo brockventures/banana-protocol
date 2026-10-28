@@ -81,11 +81,9 @@ class IngestionClassifier:
             if re.search(name_pattern, content, re.IGNORECASE):
                 return Tier.DIRECT
 
-        # 4. Bot noise filter: Ignore peer bot chatter under 4 words without explicit targeting
+        # 4. Bot noise filter: Any envelope-less message from a bot without explicit direct targeting is SILENT
         if event.is_bot:
-            words = [w for w in content.split() if any(c.isalnum() for c in w)]
-            if len(words) < 4:
-                return Tier.SILENT
+            return Tier.SILENT
 
-        # 5. Unaddressed broadcast discourse -> Candidate for semantic classifier or silent
+        # 5. Unaddressed human broadcast discourse -> Candidate for semantic classifier
         return Tier.CLASSIFIED

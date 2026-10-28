@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "banana-protocol"
-version = "0.6.1"
+version = "0.6.2"
 description = "BANANA Protocol (Binary Arbitration Node And Non-blocking Acquisition) — Canonical turn-claim client and v0/v1.1 handoff coordination protocol for Crab Cavern multi-agent systems."
 readme = "README.md"
 requires-python = ">=3.10"
