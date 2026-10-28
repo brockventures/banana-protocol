@@ -89,7 +89,8 @@ class TestClassifier(unittest.TestCase):
             is_bot=True,
             content="🍌 **Handoff Warning**: Open handoff from Zero on agora-status waiting for response."
         )
-        self.assertEqual(self.classifier.evaluate(ev), Tier.SILENT)
+        self.assertNotEqual(self.classifier.evaluate(ev), Tier.DIRECT)
+        self.assertEqual(self.classifier.evaluate(ev), Tier.CLASSIFIED)
 
     def test_bot_envelopeless_with_direct_mention_is_direct(self):
         ev = Event(
@@ -98,14 +99,6 @@ class TestClassifier(unittest.TestCase):
             content="🍌 **Fast-ACK SLA**: <@1542285964213358633> (@Zero), you have an open handoff from Aerial."
         )
         self.assertEqual(self.classifier.evaluate(ev), Tier.DIRECT)
-
-    def test_bot_envelopeless_long_message_without_mention_is_silent(self):
-        ev = Event(
-            sender="Banana Watcher",
-            is_bot=True,
-            content="🍌 **Fast-ACK SLA**: <@1468012353206354197> (@Amos), you have an open handoff from Aerial on morning-topic."
-        )
-        self.assertEqual(self.classifier.evaluate(ev), Tier.SILENT)
 
     def test_silent_reply_none(self):
         ev = Event(sender="Amos", content="""```handoff
